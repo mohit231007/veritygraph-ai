@@ -2,9 +2,9 @@
 
 **Evidence-grounded document and web intelligence. Every insight traceable to its source.**
 
-VerityGraph AI is a local-first, zero-mandatory-API-cost platform that transforms PDFs, Word documents, text files, Wikipedia pages, and permitted public web pages into canonical evidence that can later power knowledge graphs, relationship intelligence, graph analytics, and source-grounded Q&A.
+VerityGraph AI is a local-first, zero-mandatory-API-cost platform that transforms PDFs, Word documents, text files, Wikipedia pages, and permitted public web pages into persistent, traceable evidence that can power knowledge graphs, relationship intelligence, graph analytics, and source-grounded Q&A.
 
-> Status: **Phase 3 — complete source-ingestion foundation**. PDF/DOCX/TXT uploads, Wikipedia discovery, and secure public-URL imports now converge into the same `SourceDocument` / `SourceSpan` provenance model before NLP.
+> Status: **Phase 4 — persistent multi-source research workspaces**. PDF/DOCX/TXT uploads, Wikipedia discovery, and secure public-URL imports converge into one canonical provenance model and are now persisted locally in SQLite so research collections survive browser and backend restarts.
 
 ## Why this project exists
 
@@ -14,7 +14,7 @@ Most knowledge-graph demos stop at `text -> entities -> edges`. VerityGraph is b
 Relation -> Evidence -> SourceSpan -> SourceDocument
 ```
 
-The same lineage will later extend into generated answers and response versions so users can inspect why a claim exists, rate it, explain what is weak, improve the answer against frozen evidence, compare versions, and keep/export the preferred response.
+The same lineage will extend into generated answers and response versions so users can inspect why a claim exists, rate it, explain what is weak, improve the answer against frozen evidence, compare versions, and keep/export the preferred response.
 
 ## What works now
 
@@ -59,7 +59,26 @@ Paste a permitted public HTTP(S) page and VerityGraph will:
 
 Public URL ingestion does **not** support authentication/paywall/access-control bypasses. Application-level SSRF checks also do not replace production network egress restrictions; see `docs/adr/0004-public-url-ingestion-security-boundary.md`.
 
-## One canonical source contract
+### 4. Persistent multi-source workspaces
+
+Canonical sources and evidence spans are now stored in **SQLite by default**. Users can create named research workspaces and combine any mixture of:
+
+- uploaded documents;
+- Wikipedia selections;
+- permitted public URLs.
+
+Workspace membership is separate from source identity:
+
+- adding the same source twice is idempotent;
+- removing a source from a workspace does not delete the canonical source;
+- deleting a workspace does not delete its source records;
+- deleting a source automatically removes orphan workspace membership through foreign-key cascades.
+
+The React interface lets users create/select a workspace, add the current analysed source, inspect the collection, remove membership, and reload the browser while the workspace remains available.
+
+Docker persists the database in a named local volume at `/data/veritygraph.db`. The backend container runs as a dedicated non-root `veritygraph` user.
+
+## One canonical evidence architecture
 
 ```text
 +----------------------+       +----------------------+
@@ -82,23 +101,29 @@ Public URL ingestion does **not** support authentication/paywall/access-control 
                  +--------------------+
                            |
                            v
-            Phase 4+: NLP / entities / relations
+                     SQLite store
+                           |
+                           v
+                Research Workspace(s)
+                           |
+                           v
+             Phase 5+: NLP / relations
                            |
                            v
                 evidence-grounded graph
 ```
 
-The architectural rule is **provenance before NLP**. Downstream components consume `SourceSpan` objects rather than anonymous strings.
+The architectural rule remains **provenance before NLP**. Downstream components consume durable `SourceSpan` identities rather than anonymous strings.
 
 ## Product pillars
 
 - **Different inputs, one canonical model** — documents and public knowledge share one source/evidence contract.
 - **Evidence first** — future graph edges and generated insights remain traceable to spans, pages, sections, revisions, files, and URLs.
-- **Multi-source intelligence** — combine heterogeneous sources inside reusable research workspaces.
+- **Persistent multi-source intelligence** — heterogeneous evidence can be grouped into reusable local research workspaces.
 - **Insight Studio** — rate, critique, improve, compare, copy, download, and later share reproducible answer versions.
 - **Explainable confidence** — separate source-derived facts, graph-computed insights, and generated synthesis.
-- **Local-first and free by default** — no paid API is required for the core product.
-- **Quality as a feature** — unit, security, protocol, provenance, API, build, container, and browser E2E tests evolve with every feature.
+- **Local-first and free by default** — no paid API or hosted database is required for the core product.
+- **Quality as a feature** — unit, security, protocol, persistence, provenance, API, container, and browser E2E tests evolve with every feature.
 
 ## Free/open stack
 
@@ -112,9 +137,9 @@ The architectural rule is **provenance before NLP**. Downstream components consu
 | Public HTTP | httpx with VerityGraph validation |
 | Main web content | Trafilatura |
 | HTML normalization | Beautiful Soup |
+| Persistence/workspaces | SQLite |
 | NLP (next) | spaCy |
 | Graph (next) | NetworkX |
-| Metadata/workspaces (next) | SQLite |
 | Optional larger graph | Neo4j Community |
 | Optional local generation | Ollama-compatible models |
 | Optional local embeddings | sentence-transformers |
@@ -137,26 +162,38 @@ GET  /api/v1/wikipedia/pages/{page_id}/outline
 POST /api/v1/wikipedia/import
 
 POST /api/v1/web/import
+
+GET  /api/v1/sources
+GET  /api/v1/sources/{source_id}
+
+POST   /api/v1/workspaces
+GET    /api/v1/workspaces
+GET    /api/v1/workspaces/{workspace_id}
+PUT    /api/v1/workspaces/{workspace_id}/sources/{source_id}
+DELETE /api/v1/workspaces/{workspace_id}/sources/{source_id}
+DELETE /api/v1/workspaces/{workspace_id}
 ```
 
 FastAPI interactive documentation is available at `/docs` when the backend is running.
 
 ## Quality strategy
 
-VerityGraph tests each external boundary separately and then verifies the whole user journey:
+VerityGraph tests each external/storage boundary separately and then verifies the whole user journey:
 
 - real in-memory PDF/DOCX fixtures exercise document parsing;
 - MediaWiki protocol tests use `httpx.MockTransport` to validate search/TOC/section-response handling without public-network dependency;
 - public-web security tests use mocked DNS and HTTP transport to prove unsafe targets, redirects, MIME types, and oversized bodies are rejected;
+- SQLite tests write data, recreate repository objects against the same database file, and verify source/workspace restoration;
 - deterministic Wikipedia/Web fixture providers replace only external network boundaries during browser E2E;
-- Playwright still drives the real React UI, Nginx proxy, FastAPI routes, normalization, repository, and provenance preview.
+- Playwright still drives the real React UI, Nginx proxy, FastAPI routes, SQLite repository, normalization, and provenance preview.
 
 Current mandatory browser regressions:
 
 ```text
-Browser -> TXT upload -> parser -> provenance -> preview
-Browser -> Wikipedia search -> outline -> section import -> provenance -> preview
-Browser -> public URL -> safe import -> extraction -> provenance -> preview
+Browser -> TXT upload -> parser -> SQLite -> provenance -> preview
+Browser -> Wikipedia search -> outline -> section import -> SQLite -> provenance -> preview
+Browser -> public URL -> safe import -> extraction -> SQLite -> provenance -> preview
+Browser -> create workspace -> add source -> reload -> source still in workspace
 ```
 
 ## Run locally
@@ -170,6 +207,8 @@ python -m venv .venv
 pip install -e ".[dev]"
 uvicorn app.main:app --app-dir backend --reload
 ```
+
+By default, local data is stored at `data/veritygraph.db`. Override with `VERITYGRAPH_DATABASE_PATH`.
 
 ### Frontend
 
@@ -186,6 +225,8 @@ docker compose up --build
 ```
 
 Frontend: `http://localhost:3000`
+
+Docker persists application data in the named `veritygraph_data` volume. Use `docker compose down` to stop the stack without deleting data. Removing the volume is intentionally a separate operation.
 
 ### QA
 
@@ -212,10 +253,10 @@ The E2E command temporarily selects deterministic Wikipedia and web fixtures and
 ## Repository map
 
 ```text
-backend/              FastAPI, domain models, safe ingestion/providers, repositories, tests
-frontend/             React/TypeScript Source Studio and shared provenance UI
+backend/              FastAPI, domain models, safe ingestion, SQLite repositories, tests
+frontend/             React/TypeScript Source Studio, workspaces, shared provenance UI
 e2e/                  Playwright full-browser journeys
-docs/                  architecture, data model, security decisions, ADRs, QA contract
+docs/                  architecture, data model, security/persistence ADRs, QA contract
 scripts/               cross-platform developer automation
 .github/workflows/     CI quality gates
 ```
@@ -227,8 +268,8 @@ scripts/               cross-platform developer automation
 3. ✅ PDF, DOCX, TXT ingestion.
 4. ✅ Wikipedia search, section selection, revision provenance.
 5. ✅ SSRF-aware public URL ingestion + main-content extraction.
-6. **SQLite workspaces and persistent source collections.**
-7. spaCy NER and dependency-based relation extraction baseline.
+6. ✅ SQLite source persistence + multi-source research workspaces.
+7. **spaCy entity extraction + evidence-linked relation extraction + analysis runs.**
 8. Entity resolution and alias handling.
 9. Evidence graph + NetworkX analytics.
 10. Insight Studio feedback/versioning/copy/download workflow.

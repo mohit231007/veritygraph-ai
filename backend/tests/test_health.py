@@ -11,7 +11,7 @@ def test_health_contract() -> None:
     assert response.json() == {
         "status": "healthy",
         "service": "veritygraph-api",
-        "version": "0.2.0",
+        "version": "0.3.0",
     }
 
 
@@ -20,4 +20,4 @@ def test_openapi_is_available() -> None:
 
     assert response.status_code == 200
     assert response.json()["info"]["title"] == "VerityGraph AI API"
-    assert response.json()["info"]["version"] == "0.2.0"
+    assert response.json()["info"]["version"] == "0.3.0"

@@ -7,6 +7,7 @@ from app.repositories.workspace_repository import SqliteWorkspaceRepository
 
 
 def sample_bundle() -> SourceBundle:
+    text = "Persistent evidence survives repository recreation."
     document = SourceDocument(
         source_id="src_persisted",
         source_type=SourceType.DOCUMENT,
@@ -21,11 +22,11 @@ def sample_bundle() -> SourceBundle:
     span = SourceSpan(
         span_id="span_persisted",
         source_id=document.source_id,
-        text="Persistent evidence survives repository recreation.",
+        text=text,
         page_number=1,
         paragraph_number=1,
         char_start=0,
-        char_end=48,
+        char_end=len(text),
     )
     return SourceBundle(document=document, spans=[span])
 

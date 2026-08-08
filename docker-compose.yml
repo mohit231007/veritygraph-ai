@@ -6,6 +6,7 @@ services:
     environment:
       VERITYGRAPH_ENV: docker
       VERITYGRAPH_FRONTEND_ORIGIN: http://localhost:3000
+      VERITYGRAPH_WIKIPEDIA_PROVIDER: ${VERITYGRAPH_WIKIPEDIA_PROVIDER:-live}
     ports:
       - "8000:8000"
     healthcheck:

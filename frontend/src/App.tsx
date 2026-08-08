@@ -1,56 +1,17 @@
 import { useEffect, useState } from "react";
 
+import DocumentWorkspace from "./components/DocumentWorkspace";
+import SourcePreview from "./components/SourcePreview";
+import WikipediaWorkspace from "./components/WikipediaWorkspace";
+import type { HealthResponse, SourceBundle } from "./types";
+
 type ApiState = "checking" | "healthy" | "unavailable";
-type UploadState = "idle" | "uploading" | "success" | "error";
-
-type HealthResponse = {
-  status: string;
-  service: string;
-  version: string;
-};
-
-type SourceDocument = {
-  source_id: string;
-  source_type: string;
-  title: string;
-  filename: string | null;
-  source_format: string;
-  mime_type: string;
-  content_hash: string;
-  size_bytes: number;
-  metadata: Record<string, string | number | boolean | null>;
-};
-
-type SourceSpan = {
-  span_id: string;
-  source_id: string;
-  text: string;
-  page_number: number | null;
-  section: string | null;
-  paragraph_number: number | null;
-  char_start: number;
-  char_end: number;
-};
-
-type SourceBundle = {
-  document: SourceDocument;
-  spans: SourceSpan[];
-};
-
-function spanLocation(span: SourceSpan) {
-  const parts: string[] = [];
-  if (span.page_number) parts.push(`Page ${span.page_number}`);
-  if (span.paragraph_number) parts.push(`Paragraph ${span.paragraph_number}`);
-  if (span.section) parts.push(span.section.replaceAll("_", " "));
-  return parts.length > 0 ? parts.join(" · ") : "Document span";
-}
+type SourceMode = "documents" | "wikipedia";
 
 export default function App() {
   const [apiState, setApiState] = useState<ApiState>("checking");
   const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadState, setUploadState] = useState<UploadState>("idle");
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [sourceMode, setSourceMode] = useState<SourceMode>("documents");
   const [bundle, setBundle] = useState<SourceBundle | null>(null);
 
   useEffect(() => {
@@ -74,34 +35,9 @@ export default function App() {
     return () => controller.abort();
   }, []);
 
-  async function uploadDocument() {
-    if (!selectedFile) return;
-
-    setUploadState("uploading");
-    setUploadError(null);
+  function changeMode(mode: SourceMode) {
+    setSourceMode(mode);
     setBundle(null);
-
-    const formData = new FormData();
-    formData.append("file", selectedFile);
-
-    try {
-      const response = await fetch("/api/v1/documents/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const payload = (await response.json()) as SourceBundle | { detail?: string };
-
-      if (!response.ok) {
-        const detail = "detail" in payload && payload.detail ? payload.detail : "Upload failed.";
-        throw new Error(detail);
-      }
-
-      setBundle(payload as SourceBundle);
-      setUploadState("success");
-    } catch (error) {
-      setUploadError(error instanceof Error ? error.message : "Upload failed.");
-      setUploadState("error");
-    }
   }
 
   return (
@@ -110,8 +46,8 @@ export default function App() {
         <p className="eyebrow">LOCAL-FIRST · EVIDENCE-GROUNDED</p>
         <h1>VerityGraph AI</h1>
         <p className="lede">
-          Turn documents and public web sources into connected intelligence where every
-          relationship can be traced back to evidence.
+          Turn documents and public knowledge into connected intelligence where every future
+          relationship, claim and answer can be traced back to its exact evidence.
         </p>
       </header>
 
@@ -128,112 +64,62 @@ export default function App() {
         {health && <p className="version">{health.service} · v{health.version}</p>}
       </section>
 
-      <section className="workspace" aria-labelledby="documents-heading">
-        <div className="workspace-copy">
-          <p className="section-label">01 · DOCUMENT INTELLIGENCE</p>
-          <h2 id="documents-heading">Bring your own source</h2>
+      <section className="source-studio" aria-labelledby="source-studio-heading">
+        <div className="studio-heading">
+          <div>
+            <p className="section-label">SOURCE STUDIO</p>
+            <h2 id="source-studio-heading">Choose how knowledge enters the workspace</h2>
+          </div>
           <p>
-            Upload a PDF, DOCX or TXT file. VerityGraph extracts traceable source spans before
-            any NLP or graph analysis happens, so future claims can always point back to origin.
+            Different inputs, one provenance contract. Every source becomes a canonical document
+            plus evidence spans before analysis.
           </p>
-          <ul className="trust-list">
-            <li>Files stay inside your local deployment.</li>
-            <li>10 MB safety limit in this first release.</li>
-            <li>Page and paragraph provenance is retained when the format exposes it.</li>
-          </ul>
         </div>
 
-        <div className="upload-card">
-          <label className="file-picker" htmlFor="document-upload">
-            <span className="file-picker-title">Choose a source document</span>
-            <span className="file-picker-help">PDF · DOCX · TXT</span>
-            <input
-              id="document-upload"
-              data-testid="document-input"
-              type="file"
-              accept=".pdf,.docx,.txt,application/pdf,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              onChange={(event) => {
-                setSelectedFile(event.target.files?.[0] ?? null);
-                setUploadState("idle");
-                setUploadError(null);
-                setBundle(null);
-              }}
-            />
-          </label>
-
-          <div className="upload-actions">
-            <div>
-              <strong>{selectedFile ? selectedFile.name : "No document selected"}</strong>
-              {selectedFile && <span>{Math.max(1, Math.ceil(selectedFile.size / 1024))} KB</span>}
-            </div>
-            <button
-              type="button"
-              onClick={() => void uploadDocument()}
-              disabled={!selectedFile || uploadState === "uploading" || apiState !== "healthy"}
-            >
-              {uploadState === "uploading" ? "Extracting evidence…" : "Analyse document"}
-            </button>
-          </div>
-
-          <div className="upload-feedback" aria-live="polite" data-testid="upload-status">
-            {uploadState === "idle" && "Select a supported document to begin."}
-            {uploadState === "uploading" && "Parsing locally and building provenance spans…"}
-            {uploadState === "success" && bundle && `Ready · ${bundle.spans.length} evidence spans extracted.`}
-            {uploadState === "error" && uploadError}
-          </div>
+        <div className="mode-switch" role="group" aria-label="Source type">
+          <button
+            type="button"
+            className={sourceMode === "documents" ? "active" : ""}
+            aria-pressed={sourceMode === "documents"}
+            onClick={() => changeMode("documents")}
+          >
+            <span>01</span>
+            Upload documents
+          </button>
+          <button
+            type="button"
+            className={sourceMode === "wikipedia" ? "active" : ""}
+            aria-pressed={sourceMode === "wikipedia"}
+            data-testid="wikipedia-mode"
+            onClick={() => changeMode("wikipedia")}
+          >
+            <span>02</span>
+            Explore Wikipedia
+          </button>
         </div>
       </section>
 
-      {bundle && (
-        <section className="source-preview" data-testid="source-preview" aria-labelledby="preview-heading">
-          <div className="preview-header">
-            <div>
-              <p className="section-label">SOURCE PROVENANCE</p>
-              <h2 id="preview-heading">{bundle.document.filename}</h2>
-            </div>
-            <div className="source-badges">
-              <span>{bundle.document.source_format.toUpperCase()}</span>
-              <span>{bundle.spans.length} spans</span>
-              <span>{bundle.document.size_bytes.toLocaleString()} bytes</span>
-            </div>
-          </div>
-
-          <div className="source-meta">
-            <div><span>Source ID</span><code>{bundle.document.source_id}</code></div>
-            <div><span>SHA-256</span><code>{bundle.document.content_hash.slice(0, 20)}…</code></div>
-          </div>
-
-          <div className="span-list">
-            {bundle.spans.slice(0, 12).map((span) => (
-              <article className="span-row" key={span.span_id}>
-                <div>
-                  <span className="span-location">{spanLocation(span)}</span>
-                  <span className="span-offset">chars {span.char_start}–{span.char_end}</span>
-                </div>
-                <p>{span.text}</p>
-              </article>
-            ))}
-          </div>
-
-          {bundle.spans.length > 12 && (
-            <p className="preview-note">Showing the first 12 of {bundle.spans.length} spans.</p>
-          )}
-        </section>
+      {sourceMode === "documents" ? (
+        <DocumentWorkspace apiHealthy={apiState === "healthy"} onBundle={setBundle} />
+      ) : (
+        <WikipediaWorkspace apiHealthy={apiState === "healthy"} onBundle={setBundle} />
       )}
+
+      {bundle && <SourcePreview bundle={bundle} />}
 
       <section className="next-grid" aria-label="Product roadmap entry points">
         <article>
-          <span>02</span>
-          <h3>Explore public knowledge</h3>
-          <p>Wikipedia search, selected sections and permitted public URLs are next.</p>
+          <span>03</span>
+          <h3>Import public URLs</h3>
+          <p>Secure permitted-page ingestion with SSRF protection and traceable URL provenance.</p>
         </article>
         <article>
-          <span>03</span>
+          <span>04</span>
           <h3>Build the evidence graph</h3>
           <p>NER, relationship extraction and entity resolution will consume these same spans.</p>
         </article>
         <article>
-          <span>04</span>
+          <span>05</span>
           <h3>Verify and improve</h3>
           <p>Claim inspection, response ratings, frozen-evidence revisions and version history.</p>
         </article>

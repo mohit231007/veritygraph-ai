@@ -221,7 +221,7 @@ export default function WorkspaceManager({ apiHealthy, currentSource }: Props) {
           </div>
 
           {currentSource && (
-            <div className="current-source-action">
+            <div className="current-source-action" data-testid="workspace-current-source">
               <div>
                 <span>Current analysed source</span>
                 <strong>{currentSource.filename ?? currentSource.title}</strong>
@@ -237,12 +237,12 @@ export default function WorkspaceManager({ apiHealthy, currentSource }: Props) {
             </div>
           )}
 
-          <div className="workspace-source-list">
+          <div className="workspace-source-list" data-testid="workspace-source-list">
             {detail.sources.length === 0 && (
               <p className="workspace-empty">Import evidence below, then add it to this workspace.</p>
             )}
             {detail.sources.map((source) => (
-              <article key={source.source_id}>
+              <article key={source.source_id} data-source-id={source.source_id}>
                 <div>
                   <span>{source.source_type.replaceAll("_", " ")}</span>
                   <strong>{source.filename ?? source.title}</strong>

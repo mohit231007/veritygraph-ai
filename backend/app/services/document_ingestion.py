@@ -8,7 +8,7 @@ from fastapi import UploadFile
 
 from app.domain.source import SourceBundle, SourceDocument, SourceType
 from app.ingestion.documents import PARSERS
-from app.repositories.source_repository import InMemorySourceRepository
+from app.repositories.source_repository import SourceRepository
 
 
 class UploadValidationError(ValueError):
@@ -44,7 +44,7 @@ def _safe_filename(filename: str | None) -> str:
 async def ingest_document_upload(
     *,
     upload: UploadFile,
-    repository: InMemorySourceRepository,
+    repository: SourceRepository,
     max_upload_bytes: int,
 ) -> SourceBundle:
     """Validate, parse and persist one user-provided document."""

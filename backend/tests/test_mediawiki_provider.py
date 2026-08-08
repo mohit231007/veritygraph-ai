@@ -29,7 +29,10 @@ def test_mediawiki_search_parses_official_search_shape() -> None:
                         {
                             "pageid": PAGE_ID,
                             "title": "Nvidia",
-                            "snippet": "American <span class='searchmatch'>technology</span> company",
+                            "snippet": (
+                                "American <span class='searchmatch'>technology</span> "
+                                "company"
+                            ),
                             "wordcount": 6400,
                             "size": 190000,
                             "timestamp": "2026-08-01T12:30:00Z",

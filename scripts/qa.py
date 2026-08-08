@@ -58,8 +58,13 @@ def main() -> int:
         return 0
 
     docker = executable("docker")
-    previous_provider = os.environ.get("VERITYGRAPH_WIKIPEDIA_PROVIDER")
-    os.environ["VERITYGRAPH_WIKIPEDIA_PROVIDER"] = "fixture"
+    deterministic_providers = {
+        "VERITYGRAPH_WIKIPEDIA_PROVIDER": "fixture",
+        "VERITYGRAPH_WEB_PROVIDER": "fixture",
+    }
+    previous_values = {name: os.environ.get(name) for name in deterministic_providers}
+    os.environ.update(deterministic_providers)
+
     try:
         run([docker, "compose", "up", "-d", "--build"])
         wait_for("http://localhost:3000")
@@ -68,10 +73,11 @@ def main() -> int:
         run([npm, "--prefix", "e2e", "test"])
     finally:
         subprocess.run([docker, "compose", "down", "--remove-orphans"], check=False)
-        if previous_provider is None:
-            os.environ.pop("VERITYGRAPH_WIKIPEDIA_PROVIDER", None)
-        else:
-            os.environ["VERITYGRAPH_WIKIPEDIA_PROVIDER"] = previous_provider
+        for name, previous_value in previous_values.items():
+            if previous_value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = previous_value
 
     print("\nFull VerityGraph QA passed.")
     return 0

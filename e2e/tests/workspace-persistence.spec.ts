@@ -20,11 +20,15 @@ test("workspace keeps a source after browser reload", async ({ page }) => {
 
   await page.getByTestId("workspace-add-source").click();
   await expect(page.getByTestId("workspace-source-count")).toHaveText("1 source");
-  await expect(page.getByTestId("workspace-detail").getByText("persistent-evidence.txt")).toBeVisible();
+  await expect(
+    page.getByTestId("workspace-source-list").getByText("persistent-evidence.txt"),
+  ).toBeVisible();
 
   await page.reload();
   await expect(page.getByTestId("api-status")).toHaveText("API healthy");
   await expect(page.getByTestId("workspace-detail").getByText(workspaceName, { exact: true })).toBeVisible();
   await expect(page.getByTestId("workspace-source-count")).toHaveText("1 source");
-  await expect(page.getByTestId("workspace-detail").getByText("persistent-evidence.txt")).toBeVisible();
+  await expect(
+    page.getByTestId("workspace-source-list").getByText("persistent-evidence.txt"),
+  ).toBeVisible();
 });

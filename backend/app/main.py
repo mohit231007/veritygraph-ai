@@ -3,8 +3,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes_documents import router as documents_router
 from app.api.routes_health import router as health_router
+from app.api.routes_sources import router as sources_router
 from app.api.routes_web import router as web_router
 from app.api.routes_wikipedia import router as wikipedia_router
+from app.api.routes_workspaces import router as workspaces_router
 from app.core.config import get_settings
 from app.version import VERSION
 
@@ -28,6 +30,8 @@ app.include_router(health_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
 app.include_router(wikipedia_router, prefix="/api/v1")
 app.include_router(web_router, prefix="/api/v1")
+app.include_router(sources_router, prefix="/api/v1")
+app.include_router(workspaces_router, prefix="/api/v1")
 
 
 @app.get("/", include_in_schema=False)

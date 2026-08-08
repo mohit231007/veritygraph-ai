@@ -1,12 +1,12 @@
 from hashlib import sha256
 from io import BytesIO
 
+import fitz
+import pytest
 from app.main import app
 from app.repositories.source_repository import get_source_repository
 from docx import Document
 from fastapi.testclient import TestClient
-import fitz
-import pytest
 
 client = TestClient(app)
 

@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 
 import DocumentWorkspace from "./components/DocumentWorkspace";
+import PublicUrlWorkspace from "./components/PublicUrlWorkspace";
 import SourcePreview from "./components/SourcePreview";
 import WikipediaWorkspace from "./components/WikipediaWorkspace";
 import type { HealthResponse, SourceBundle } from "./types";
 
 type ApiState = "checking" | "healthy" | "unavailable";
-type SourceMode = "documents" | "wikipedia";
+type SourceMode = "documents" | "wikipedia" | "public-url";
 
 export default function App() {
   const [apiState, setApiState] = useState<ApiState>("checking");
@@ -96,30 +97,44 @@ export default function App() {
             <span>02</span>
             Explore Wikipedia
           </button>
+          <button
+            type="button"
+            className={sourceMode === "public-url" ? "active" : ""}
+            aria-pressed={sourceMode === "public-url"}
+            data-testid="public-url-mode"
+            onClick={() => changeMode("public-url")}
+          >
+            <span>03</span>
+            Import public URL
+          </button>
         </div>
       </section>
 
-      {sourceMode === "documents" ? (
+      {sourceMode === "documents" && (
         <DocumentWorkspace apiHealthy={apiState === "healthy"} onBundle={setBundle} />
-      ) : (
+      )}
+      {sourceMode === "wikipedia" && (
         <WikipediaWorkspace apiHealthy={apiState === "healthy"} onBundle={setBundle} />
+      )}
+      {sourceMode === "public-url" && (
+        <PublicUrlWorkspace apiHealthy={apiState === "healthy"} onBundle={setBundle} />
       )}
 
       {bundle && <SourcePreview bundle={bundle} />}
 
       <section className="next-grid" aria-label="Product roadmap entry points">
         <article>
-          <span>03</span>
-          <h3>Import public URLs</h3>
-          <p>Secure permitted-page ingestion with SSRF protection and traceable URL provenance.</p>
+          <span>04</span>
+          <h3>Persist workspaces</h3>
+          <p>SQLite-backed source collections will turn one-off imports into reusable research workspaces.</p>
         </article>
         <article>
-          <span>04</span>
+          <span>05</span>
           <h3>Build the evidence graph</h3>
           <p>NER, relationship extraction and entity resolution will consume these same spans.</p>
         </article>
         <article>
-          <span>05</span>
+          <span>06</span>
           <h3>Verify and improve</h3>
           <p>Claim inspection, response ratings, frozen-evidence revisions and version history.</p>
         </article>

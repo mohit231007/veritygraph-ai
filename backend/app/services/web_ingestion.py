@@ -12,7 +12,7 @@ from trafilatura import extract
 from app.core.config import get_settings
 from app.domain.source import SourceBundle, SourceDocument, SourceSpan, SourceType
 from app.domain.web import RawWebPage
-from app.ingestion.web import FixtureWebFetcher, SafeHttpWebFetcher
+from app.ingestion.web import FixtureWebFetcher, SafeHttpWebFetcher, WebFetcher
 from app.repositories.source_repository import InMemorySourceRepository
 
 
@@ -77,7 +77,7 @@ def _extract_paragraphs(page: RawWebPage) -> tuple[str, list[str]]:
 
 
 @lru_cache
-def get_web_fetcher() -> SafeHttpWebFetcher | FixtureWebFetcher:
+def get_web_fetcher() -> WebFetcher:
     settings = get_settings()
     provider = settings.web_provider.lower()
     if provider == "fixture":
@@ -95,7 +95,7 @@ def get_web_fetcher() -> SafeHttpWebFetcher | FixtureWebFetcher:
 async def ingest_public_url(
     *,
     url: str,
-    fetcher: SafeHttpWebFetcher | FixtureWebFetcher,
+    fetcher: WebFetcher,
     repository: InMemorySourceRepository,
 ) -> SourceBundle:
     """Fetch a validated public page and convert main content into evidence spans."""

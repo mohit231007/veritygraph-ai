@@ -4,6 +4,7 @@ import asyncio
 import ipaddress
 import socket
 from collections.abc import Awaitable, Callable
+from typing import Protocol
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
@@ -12,6 +13,10 @@ from app.domain.web import RawWebPage
 
 IPAddress = ipaddress.IPv4Address | ipaddress.IPv6Address
 Resolver = Callable[[str, int], Awaitable[list[IPAddress]]]
+
+
+class WebFetcher(Protocol):
+    async def fetch(self, url: str) -> RawWebPage: ...
 
 
 class WebFetchError(RuntimeError):

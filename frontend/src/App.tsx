@@ -4,6 +4,7 @@ import DocumentWorkspace from "./components/DocumentWorkspace";
 import PublicUrlWorkspace from "./components/PublicUrlWorkspace";
 import SourcePreview from "./components/SourcePreview";
 import WikipediaWorkspace from "./components/WikipediaWorkspace";
+import WorkspaceManager from "./components/WorkspaceManager";
 import type { HealthResponse, SourceBundle } from "./types";
 
 type ApiState = "checking" | "healthy" | "unavailable";
@@ -65,6 +66,11 @@ export default function App() {
         {health && <p className="version">{health.service} · v{health.version}</p>}
       </section>
 
+      <WorkspaceManager
+        apiHealthy={apiState === "healthy"}
+        currentSource={bundle?.document ?? null}
+      />
+
       <section className="source-studio" aria-labelledby="source-studio-heading">
         <div className="studio-heading">
           <div>
@@ -125,8 +131,8 @@ export default function App() {
       <section className="next-grid" aria-label="Product roadmap entry points">
         <article>
           <span>04</span>
-          <h3>Persist workspaces</h3>
-          <p>SQLite-backed source collections will turn one-off imports into reusable research workspaces.</p>
+          <h3>Analyse the workspace</h3>
+          <p>Run one NLP pipeline over every persisted source while retaining evidence lineage.</p>
         </article>
         <article>
           <span>05</span>

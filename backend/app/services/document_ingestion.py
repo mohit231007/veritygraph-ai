@@ -7,12 +7,20 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from app.domain.source import SourceBundle, SourceDocument, SourceType
-from app.ingestion.documents import PARSERS, DocumentParseError
+from app.ingestion.documents import PARSERS
 from app.repositories.source_repository import InMemorySourceRepository
 
 
 class UploadValidationError(ValueError):
     """Raised when an upload violates VerityGraph's input contract."""
+
+
+class UnsupportedDocumentTypeError(UploadValidationError):
+    """Raised when extension or MIME type is not allowed."""
+
+
+class UploadTooLargeError(UploadValidationError):
+    """Raised when a file exceeds the configured upload limit."""
 
 
 ALLOWED_MIME_TYPES: dict[str, set[str]] = {
@@ -44,11 +52,11 @@ async def ingest_document_upload(
     filename = _safe_filename(upload.filename)
     extension = PurePosixPath(filename).suffix.lower()
     if extension not in PARSERS:
-        raise UploadValidationError("Unsupported document type. Use PDF, DOCX or TXT.")
+        raise UnsupportedDocumentTypeError("Unsupported document type. Use PDF, DOCX or TXT.")
 
     mime_type = upload.content_type or "application/octet-stream"
     if mime_type not in ALLOWED_MIME_TYPES[extension]:
-        raise UploadValidationError(
+        raise UnsupportedDocumentTypeError(
             f"Content type {mime_type!r} is not valid for a {extension} document."
         )
 
@@ -60,16 +68,12 @@ async def ingest_document_upload(
     if not content:
         raise UploadValidationError("The uploaded document is empty.")
     if len(content) > max_upload_bytes:
-        raise UploadValidationError(
+        raise UploadTooLargeError(
             f"Document exceeds the {max_upload_bytes // (1024 * 1024)} MB upload limit."
         )
 
     source_id = f"src_{uuid4().hex}"
-    parser = PARSERS[extension]
-    try:
-        spans = parser(source_id, content)
-    except DocumentParseError:
-        raise
+    spans = PARSERS[extension](source_id, content)
 
     document = SourceDocument(
         source_id=source_id,

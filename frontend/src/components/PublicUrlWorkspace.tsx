@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import "../source-studio.css";
 import type { SourceBundle } from "../types";
 
 type RequestState = "idle" | "loading" | "success" | "error";

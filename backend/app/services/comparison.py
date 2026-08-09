@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import unicodedata
 from collections import defaultdict
 from itertools import combinations
+from urllib.parse import urlparse
 
 from app.domain.analysis import (
     AssertionModality,
@@ -17,19 +19,19 @@ from app.domain.comparison import (
     SourceComparison,
     SourceComparisonSummary,
     SourcePairOverlap,
+    SourceRelationshipSignal,
 )
 from app.domain.source import SourceDocument
 
-COMPARISON_VERSION = "source-corroboration-v3-qualifiers"
+COMPARISON_VERSION = "source-corroboration-v4-relationships"
 INTERPRETATION_NOTE = (
-    "Cross-source means the same resolved assertion, polarity, modality, and explicit year "
-    "scope has retained evidence from at least two distinct sources in this analysis run. "
-    "A contradiction candidate requires asserted (not modal) affirmed and explicitly negated "
-    "evidence for the same resolved subject-predicate-object with compatible explicit time "
-    "scope and at least two distinct sources across the two sides. Unknown historical "
-    "qualifiers, one-sided time scope, disjoint years, modal language, and source silence are "
-    "never treated as contradictions. A candidate identifies incompatible retained evidence; "
-    "it does not determine which side is true."
+    "Cross-source means the same resolved qualified assertion has retained evidence from at "
+    "least two distinct source IDs in this analysis run; it does not prove independent "
+    "reporting. Exact content-fingerprint matches, same-origin hosts, and identical normalized "
+    "supporting sentences are surfaced as source-relationship review signals. These signals "
+    "do not prove that one source copied another, and their absence does not prove independence. "
+    "Contradiction candidates still require asserted opposing polarity, compatible explicit "
+    "time scope, and evidence from at least two distinct source IDs."
 )
 
 
@@ -69,12 +71,33 @@ def _compatible_years(left: Relation, right: Relation) -> list[int] | None:
     return overlap or None
 
 
+def _normalize_evidence_text(text: str) -> str:
+    value = unicodedata.normalize("NFKC", text).casefold()
+    return " ".join(value.split())
+
+
+def _origin_host(document: SourceDocument | None) -> str | None:
+    if document is None or not document.url:
+        return None
+    host = urlparse(document.url).hostname
+    if not host:
+        return None
+    normalized = host.casefold().rstrip(".")
+    return normalized[4:] if normalized.startswith("www.") else normalized
+
+
+def _content_fingerprint(document: SourceDocument | None, source_id: str) -> str:
+    if document is not None and document.content_hash:
+        return f"content:{document.content_hash}"
+    return f"source:{source_id}"
+
+
 def build_source_comparison(
     analysis: WorkspaceAnalysis,
     *,
     source_documents: dict[str, SourceDocument],
 ) -> SourceComparison:
-    """Compare exact qualified support without inferring contradiction from silence."""
+    """Compare qualified support and expose conservative source relationship signals."""
 
     entity_names = {entity.entity_id: entity.canonical_name for entity in analysis.entities}
     source_ids = _source_ids_for_run(analysis)
@@ -83,6 +106,9 @@ def build_source_comparison(
     claims: list[ComparisonClaim] = []
     claim_ids_by_source = {source_id: set() for source_id in source_ids}
     relations_by_assertion: dict[tuple[str, str, str], list[Relation]] = defaultdict(list)
+    evidence_texts_by_relation_source: dict[str, dict[str, set[str]]] = defaultdict(
+        lambda: defaultdict(set)
+    )
 
     for relation in analysis.relations:
         relations_by_assertion[_assertion_key(relation)].append(relation)
@@ -95,6 +121,22 @@ def build_source_comparison(
         if not evidence_source_ids:
             continue
 
+        normalized_evidence_texts = {
+            _normalize_evidence_text(evidence.text)
+            for evidence in relation.evidence
+            if _normalize_evidence_text(evidence.text)
+        }
+        for evidence in relation.evidence:
+            normalized = _normalize_evidence_text(evidence.text)
+            if normalized:
+                evidence_texts_by_relation_source[relation.relation_id][
+                    evidence.source_id
+                ].add(normalized)
+
+        content_fingerprints = {
+            _content_fingerprint(source_documents.get(source_id), source_id)
+            for source_id in evidence_source_ids
+        }
         support_level = (
             ClaimSupportLevel.CROSS_SOURCE
             if len(evidence_source_ids) >= 2
@@ -117,6 +159,8 @@ def build_source_comparison(
             support_level=support_level,
             source_count=len(evidence_source_ids),
             source_ids=evidence_source_ids,
+            distinct_content_fingerprint_count=max(1, len(content_fingerprints)),
+            distinct_evidence_text_count=max(1, len(normalized_evidence_texts)),
             evidence_count=len(relation.evidence),
             evidence=relation.evidence,
         )
@@ -127,6 +171,7 @@ def build_source_comparison(
     claims.sort(
         key=lambda claim: (
             claim.support_level != ClaimSupportLevel.CROSS_SOURCE,
+            claim.distinct_content_fingerprint_count == claim.source_count,
             -claim.source_count,
             -claim.evidence_count,
             claim.subject_label.casefold(),
@@ -265,7 +310,8 @@ def build_source_comparison(
             )
         )
 
-    overlaps = []
+    overlaps: list[SourcePairOverlap] = []
+    source_relationships: list[SourceRelationshipSignal] = []
     for left_source_id, right_source_id in combinations(source_ids, 2):
         left_claims = claim_ids_by_source.get(left_source_id, set())
         right_claims = claim_ids_by_source.get(right_source_id, set())
@@ -281,12 +327,73 @@ def build_source_comparison(
                 shared_relation_ids=sorted(shared),
             )
         )
+
+        left_document = source_documents.get(left_source_id)
+        right_document = source_documents.get(right_source_id)
+        left_host = _origin_host(left_document)
+        right_host = _origin_host(right_document)
+        same_origin_host = bool(left_host and right_host and left_host == right_host)
+        exact_content_match = bool(
+            left_document
+            and right_document
+            and left_document.content_hash
+            and left_document.content_hash == right_document.content_hash
+        )
+
+        exact_evidence_relation_ids: list[str] = []
+        exact_evidence_text_overlap_count = 0
+        for relation_id, texts_by_source in evidence_texts_by_relation_source.items():
+            shared_texts = texts_by_source.get(left_source_id, set()) & texts_by_source.get(
+                right_source_id, set()
+            )
+            if shared_texts:
+                exact_evidence_relation_ids.append(relation_id)
+                exact_evidence_text_overlap_count += len(shared_texts)
+
+        possible_derivation_signal = (
+            exact_content_match or exact_evidence_text_overlap_count > 0
+        )
+        review_reasons: list[str] = []
+        if exact_content_match:
+            review_reasons.append("matching persisted content fingerprint")
+        if exact_evidence_text_overlap_count:
+            review_reasons.append(
+                "identical normalized supporting sentence on a shared resolved assertion"
+            )
+        if same_origin_host:
+            review_reasons.append(f"same origin host: {left_host}")
+
+        source_relationships.append(
+            SourceRelationshipSignal(
+                left_source_id=left_source_id,
+                right_source_id=right_source_id,
+                left_origin_host=left_host,
+                right_origin_host=right_host,
+                same_origin_host=same_origin_host,
+                exact_content_fingerprint_match=exact_content_match,
+                exact_evidence_text_overlap_count=exact_evidence_text_overlap_count,
+                exact_evidence_relation_ids=sorted(exact_evidence_relation_ids),
+                possible_derivation_signal=possible_derivation_signal,
+                review_reasons=review_reasons,
+            )
+        )
+
     overlaps.sort(
         key=lambda overlap: (
             -overlap.jaccard_similarity,
             -overlap.shared_claim_count,
             overlap.left_source_id,
             overlap.right_source_id,
+        )
+    )
+    source_relationships.sort(
+        key=lambda signal: (
+            not signal.possible_derivation_signal,
+            not signal.exact_content_fingerprint_match,
+            -signal.exact_evidence_text_overlap_count,
+            not signal.same_origin_host,
+            signal.left_source_id,
+            signal.right_source_id,
         )
     )
 
@@ -301,10 +408,24 @@ def build_source_comparison(
             single_source_claim_count=len(single_source_ids),
             contradiction_candidate_count=len(contradictions),
             pair_count=len(overlaps),
+            exact_content_match_pair_count=sum(
+                signal.exact_content_fingerprint_match for signal in source_relationships
+            ),
+            exact_evidence_overlap_pair_count=sum(
+                signal.exact_evidence_text_overlap_count > 0
+                for signal in source_relationships
+            ),
+            same_origin_pair_count=sum(
+                signal.same_origin_host for signal in source_relationships
+            ),
+            possible_derivation_pair_count=sum(
+                signal.possible_derivation_signal for signal in source_relationships
+            ),
         ),
         sources=profiles,
         claims=claims,
         contradictions=contradictions,
         overlaps=overlaps,
+        source_relationships=source_relationships,
         interpretation_note=INTERPRETATION_NOTE,
     )

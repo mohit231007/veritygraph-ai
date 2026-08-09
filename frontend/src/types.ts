@@ -137,3 +137,62 @@ export type WorkspaceAnalysis = {
   entities: AnalysisEntity[];
   relations: AnalysisRelation[];
 };
+
+export type GraphNode = {
+  entity_id: string;
+  label: string;
+  entity_type: string;
+  mention_count: number;
+  source_count: number;
+  in_degree: number;
+  out_degree: number;
+  degree_centrality: number;
+  pagerank: number;
+  betweenness: number;
+  community: number;
+};
+
+export type GraphEdge = {
+  relation_id: string;
+  source_entity_id: string;
+  target_entity_id: string;
+  predicate: string;
+  extraction_score: number;
+  extraction_method: string;
+  evidence_count: number;
+  source_count: number;
+  evidence: RelationEvidence[];
+};
+
+export type GraphSummary = {
+  node_count: number;
+  edge_count: number;
+  density: number;
+  weak_component_count: number;
+  community_count: number;
+};
+
+export type EvidenceGraph = {
+  run_id: string;
+  workspace_id: string;
+  graph_version: string;
+  summary: GraphSummary;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+};
+
+export type GraphPathStep = {
+  source_entity_id: string;
+  target_entity_id: string;
+  relation_ids: string[];
+};
+
+export type GraphPath = {
+  run_id: string;
+  source_entity_id: string;
+  target_entity_id: string;
+  directed: boolean;
+  hop_count: number;
+  entity_ids: string[];
+  steps: GraphPathStep[];
+};

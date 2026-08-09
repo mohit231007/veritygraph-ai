@@ -9,8 +9,11 @@ from typing import Protocol
 
 from app.core.config import get_settings
 from app.domain.source import (
+    BibliographicIdentifierKind,
+    IdentifierObservationRole,
     SourceBundle,
     SourceDocument,
+    SourceIdentifier,
     SourceReference,
     SourceSpan,
     SourceType,
@@ -133,6 +136,30 @@ class SqliteSourceRepository:
                     ON source_references(source_id, reference_id);
                 CREATE INDEX IF NOT EXISTS idx_source_references_target
                     ON source_references(normalized_target_url);
+
+                CREATE TABLE IF NOT EXISTS source_identifiers (
+                    identifier_id TEXT PRIMARY KEY,
+                    source_id TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    raw_value TEXT NOT NULL,
+                    normalized_value TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    span_id TEXT,
+                    reference_id TEXT,
+                    page_number INTEGER,
+                    paragraph_number INTEGER,
+                    version INTEGER,
+                    context_text TEXT,
+                    extraction_method TEXT NOT NULL,
+                    FOREIGN KEY(source_id) REFERENCES sources(source_id) ON DELETE CASCADE,
+                    FOREIGN KEY(span_id) REFERENCES source_spans(span_id) ON DELETE SET NULL,
+                    FOREIGN KEY(reference_id) REFERENCES source_references(reference_id) ON DELETE SET NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_source_identifiers_source
+                    ON source_identifiers(source_id, identifier_id);
+                CREATE INDEX IF NOT EXISTS idx_source_identifiers_identity
+                    ON source_identifiers(kind, normalized_value);
                 """
             )
             self._ensure_reference_columns(connection)
@@ -192,6 +219,10 @@ class SqliteSourceRepository:
                 ),
             )
             connection.execute(
+                "DELETE FROM source_identifiers WHERE source_id = ?",
+                (document.source_id,),
+            )
+            connection.execute(
                 "DELETE FROM source_references WHERE source_id = ?",
                 (document.source_id,),
             )
@@ -247,6 +278,33 @@ class SqliteSourceRepository:
                     for reference in bundle.references
                 ],
             )
+            connection.executemany(
+                """
+                INSERT INTO source_identifiers (
+                    identifier_id, source_id, kind, raw_value, normalized_value,
+                    role, span_id, reference_id, page_number, paragraph_number,
+                    version, context_text, extraction_method
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        identifier.identifier_id,
+                        identifier.source_id,
+                        identifier.kind.value,
+                        identifier.raw_value,
+                        identifier.normalized_value,
+                        identifier.role.value,
+                        identifier.span_id,
+                        identifier.reference_id,
+                        identifier.page_number,
+                        identifier.paragraph_number,
+                        identifier.version,
+                        identifier.context_text,
+                        identifier.extraction_method,
+                    )
+                    for identifier in bundle.identifiers
+                ],
+            )
         return bundle
 
     def get(self, source_id: str) -> SourceBundle | None:
@@ -273,11 +331,20 @@ class SqliteSourceRepository:
                 """,
                 (source_id,),
             ).fetchall()
+            identifier_rows = connection.execute(
+                """
+                SELECT * FROM source_identifiers
+                WHERE source_id = ?
+                ORDER BY kind, normalized_value, role, identifier_id
+                """,
+                (source_id,),
+            ).fetchall()
 
         return SourceBundle(
             document=self._document_from_row(source_row),
             spans=[self._span_from_row(row) for row in span_rows],
             references=[self._reference_from_row(row) for row in reference_rows],
+            identifiers=[self._identifier_from_row(row) for row in identifier_rows],
         )
 
     def list_documents(self, limit: int = 100) -> list[SourceDocument]:
@@ -337,6 +404,24 @@ class SqliteSourceRepository:
             reference_text=row["reference_text"],
             citation_label=row["citation_label"],
             citation_marker=row["citation_marker"],
+            extraction_method=row["extraction_method"],
+        )
+
+    @staticmethod
+    def _identifier_from_row(row: sqlite3.Row) -> SourceIdentifier:
+        return SourceIdentifier(
+            identifier_id=row["identifier_id"],
+            source_id=row["source_id"],
+            kind=BibliographicIdentifierKind(row["kind"]),
+            raw_value=row["raw_value"],
+            normalized_value=row["normalized_value"],
+            role=IdentifierObservationRole(row["role"]),
+            span_id=row["span_id"],
+            reference_id=row["reference_id"],
+            page_number=row["page_number"],
+            paragraph_number=row["paragraph_number"],
+            version=row["version"],
+            context_text=row["context_text"],
             extraction_method=row["extraction_method"],
         )
 

@@ -17,7 +17,7 @@ function sourceLabel(workspace: WorkspaceDetail | null, sourceId: string) {
 }
 
 function entityAliases(entity: AnalysisEntity) {
-  const canonical = entity.canonical_name.casefold?.() ?? entity.canonical_name.toLocaleLowerCase();
+  const canonical = entity.canonical_name.toLocaleLowerCase();
   return Array.from(new Set(entity.mentions.map((mention) => mention.text))).filter(
     (alias) => alias.toLocaleLowerCase() !== canonical,
   );

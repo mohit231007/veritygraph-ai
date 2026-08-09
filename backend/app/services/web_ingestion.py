@@ -14,6 +14,7 @@ from app.domain.source import SourceBundle, SourceDocument, SourceSpan, SourceTy
 from app.domain.web import RawWebPage
 from app.ingestion.web import FixtureWebFetcher, SafeHttpWebFetcher, WebFetcher
 from app.repositories.source_repository import SourceRepository
+from app.services.source_identifiers import extract_source_identifiers
 from app.services.source_references import (
     extract_retained_html_anchor_references,
     extract_visible_url_references,
@@ -137,6 +138,11 @@ async def ingest_public_url(
         else []
     )
     references = merge_references(visible_references, anchor_references)
+    identifiers = extract_source_identifiers(
+        source_id=source_id,
+        spans=spans,
+        references=references,
+    )
 
     normalized = "\n\n".join(paragraphs)
     host = urlsplit(page.final_url).hostname or ""
@@ -159,8 +165,14 @@ async def ingest_public_url(
             "fetched_bytes": len(page.content),
             "span_count": len(spans),
             "reference_count": len(references),
+            "identifier_count": len(identifiers),
         },
     )
     return repository.save(
-        SourceBundle(document=document, spans=spans, references=references)
+        SourceBundle(
+            document=document,
+            spans=spans,
+            references=references,
+            identifiers=identifiers,
+        )
     )

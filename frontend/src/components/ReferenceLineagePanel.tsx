@@ -53,6 +53,7 @@ type ReferenceTargetGroup = {
 };
 
 type ResolutionFilter = "all" | ReferenceResolution;
+type SourceScopeFilter = "all" | "cross_source" | "single_source";
 
 type Props = {
   apiHealthy: boolean;
@@ -171,6 +172,7 @@ export default function ReferenceLineagePanel({ apiHealthy, workspace }: Props) 
   const [message, setMessage] = useState("Add sources to inspect explicit citation lineage.");
   const [query, setQuery] = useState("");
   const [resolutionFilter, setResolutionFilter] = useState<ResolutionFilter>("all");
+  const [sourceScopeFilter, setSourceScopeFilter] = useState<SourceScopeFilter>("all");
   const [visibleLimit, setVisibleLimit] = useState(INITIAL_TARGET_LIMIT);
   const [expandedTargets, setExpandedTargets] = useState<Set<string>>(() => new Set());
 
@@ -218,22 +220,28 @@ export default function ReferenceLineagePanel({ apiHealthy, workspace }: Props) 
     setVisibleLimit(INITIAL_TARGET_LIMIT);
     setQuery("");
     setResolutionFilter("all");
+    setSourceScopeFilter("all");
     setExpandedTargets(singleTargetKey ? new Set([singleTargetKey]) : new Set());
   }, [lineage?.workspace_id, singleTargetKey]);
 
   useEffect(() => {
     setVisibleLimit(INITIAL_TARGET_LIMIT);
-  }, [query, resolutionFilter]);
+  }, [query, resolutionFilter, sourceScopeFilter]);
 
   const filteredTargets = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     return targetGroups.filter((group) => {
       const resolutionMatches =
         resolutionFilter === "all" || group.resolution === resolutionFilter;
+      const scopeMatches =
+        sourceScopeFilter === "all" ||
+        (sourceScopeFilter === "cross_source"
+          ? group.sourceLabels.length > 1
+          : group.sourceLabels.length === 1);
       const queryMatches = !normalizedQuery || group.searchableText.includes(normalizedQuery);
-      return resolutionMatches && queryMatches;
+      return resolutionMatches && scopeMatches && queryMatches;
     });
-  }, [query, resolutionFilter, targetGroups]);
+  }, [query, resolutionFilter, sourceScopeFilter, targetGroups]);
 
   const domainStats = useMemo(() => {
     const counts = new Map<string, { targetCount: number; occurrenceCount: number }>();
@@ -259,6 +267,9 @@ export default function ReferenceLineagePanel({ apiHealthy, workspace }: Props) 
   ).length;
   const externalTargetCount = targetGroups.filter(
     (group) => group.resolution === "external",
+  ).length;
+  const crossSourceTargetCount = targetGroups.filter(
+    (group) => group.sourceLabels.length > 1,
   ).length;
   const visibleTargets = filteredTargets.slice(0, visibleLimit);
 
@@ -289,6 +300,7 @@ export default function ReferenceLineagePanel({ apiHealthy, workspace }: Props) 
             <article><span>Sources</span><strong>{lineage.summary.source_count}</strong></article>
             <article data-testid="reference-count"><span>Reference occurrences</span><strong>{lineage.summary.reference_count}</strong></article>
             <article data-testid="unique-reference-target-count"><span>Unique targets</span><strong>{targetGroups.length}</strong></article>
+            <article data-testid="cross-source-target-count"><span>Cross-source targets</span><strong>{crossSourceTargetCount}</strong></article>
             <article data-testid="resolved-reference-count"><span>Resolved occurrences</span><strong>{lineage.summary.resolved_workspace_reference_count}</strong></article>
             <article><span>Resolved unique targets</span><strong>{resolvedTargetCount}</strong></article>
             <article><span>External unique targets</span><strong>{externalTargetCount}</strong></article>
@@ -297,6 +309,9 @@ export default function ReferenceLineagePanel({ apiHealthy, workspace }: Props) 
           <aside className="reference-lineage-guardrail" data-testid="reference-lineage-guardrail">
             <strong>Explicit URL ≠ endorsement, quotation, dependence, or truth.</strong>
             <p>{lineage.interpretation_note}</p>
+            <p className="reference-cross-source-note" data-testid="cross-source-target-guardrail">
+              Cross-source target means multiple workspace sources explicitly reference the same normalized target. It is a shared-reference review signal only—not a directed source-to-source citation edge, agreement, endorsement, independence proof, or truth signal.
+            </p>
           </aside>
 
           {targetGroups.length > 0 && (
@@ -321,10 +336,20 @@ export default function ReferenceLineagePanel({ apiHealthy, workspace }: Props) 
                     value={resolutionFilter}
                     onChange={(event) => setResolutionFilter(event.target.value as ResolutionFilter)}
                   >
-                    <option value="all">All targets</option>
+                    <option value="all">All resolutions</option>
                     <option value="workspace_unique">Resolved in workspace</option>
                     <option value="external">External / not ingested</option>
                     <option value="workspace_ambiguous">Ambiguous</option>
+                  </select>
+                  <select
+                    aria-label="Reference source scope filter"
+                    data-testid="reference-source-scope-filter"
+                    value={sourceScopeFilter}
+                    onChange={(event) => setSourceScopeFilter(event.target.value as SourceScopeFilter)}
+                  >
+                    <option value="all">All source scopes</option>
+                    <option value="cross_source">Cross-source targets</option>
+                    <option value="single_source">Single-source targets</option>
                   </select>
                 </div>
               </div>
@@ -371,6 +396,7 @@ export default function ReferenceLineagePanel({ apiHealthy, workspace }: Props) 
                     <span className={`reference-resolution ${group.resolution}`}>
                       {resolutionLabel(group.resolution)}
                     </span>
+                    {group.sourceLabels.length > 1 && <span className="reference-cross-source-badge">Cross-source</span>}
                     <span className="reference-expand-icon" aria-hidden="true">{expanded ? "−" : "+"}</span>
                   </button>
                   <p className="reference-target">{group.normalizedTargetUrl}</p>
@@ -411,7 +437,7 @@ export default function ReferenceLineagePanel({ apiHealthy, workspace }: Props) 
               <p className="reference-lineage-empty">No explicit HTTP(S) references were retained from the current workspace sources.</p>
             )}
             {targetGroups.length > 0 && filteredTargets.length === 0 && (
-              <p className="reference-lineage-empty">No unique reference target matches the current search and resolution filter.</p>
+              <p className="reference-lineage-empty">No unique reference target matches the current search and filters.</p>
             )}
             {filteredTargets.length > visibleTargets.length && (
               <button

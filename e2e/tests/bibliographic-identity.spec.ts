@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("exact DOI identity matches across sources and survives reload", async ({ page }) => {
+test("shared DOI mentions stay separate from source identity after reload", async ({ page }) => {
   const workspaceName = "E2E Bibliographic Identity";
   const normalizedDoi = "10.1000/verity.test";
 
@@ -22,7 +22,7 @@ test("exact DOI identity matches across sources and survives reload", async ({ p
   await expect(page.getByTestId("workspace-source-count")).toHaveText("1 source");
 
   await expect(page.getByTestId("bibliographic-identity-status")).toContainText(
-    "1 observation · 0 exact workspace matches · 0 ambiguous",
+    "1 observation · 0 shared across sources · 0 resolved source identities · 0 ambiguous targets",
     { timeout: 10_000 },
   );
 
@@ -37,29 +37,32 @@ test("exact DOI identity matches across sources and survives reload", async ({ p
   await expect(page.getByTestId("workspace-source-count")).toHaveText("2 sources");
 
   await expect(page.getByTestId("bibliographic-identity-status")).toContainText(
-    "2 observations · 2 exact workspace matches · 0 ambiguous",
+    "2 observations · 2 shared across sources · 0 resolved source identities · 0 ambiguous targets",
     { timeout: 10_000 },
   );
   await expect(page.getByTestId("bibliographic-match-count")).toContainText("2");
+  await expect(page.getByTestId("resolved-identity-target-count")).toContainText("0");
   await expect(page.getByTestId("bibliographic-identity-guardrail")).toContainText(
-    "Identifier match ≠ citation, endorsement, authorship, dependence, or truth",
+    "Shared identifier ≠ source identity. Source identity ≠ citation, endorsement, authorship, factual support, or truth",
   );
 
   const cards = page.getByTestId("bibliographic-identifier-card");
   await expect(cards).toHaveCount(2);
   await expect(cards.nth(0)).toContainText(normalizedDoi);
   await expect(cards.nth(1)).toContainText(normalizedDoi);
-  await expect(cards.nth(0)).toContainText("Exact workspace identity");
-  await expect(cards.nth(1)).toContainText("Exact workspace identity");
+  await expect(cards.nth(0)).toContainText("Shared by one other source");
+  await expect(cards.nth(1)).toContainText("Shared by one other source");
   await expect(cards.nth(0)).toContainText("Source mention");
+  await expect(page.getByTestId("identity-target")).toHaveCount(0);
 
   await page.reload();
   await expect(page.getByTestId("api-status")).toHaveText("API healthy");
   await expect(page.getByTestId("workspace-detail")).toContainText(workspaceName);
   await expect(page.getByTestId("workspace-source-count")).toHaveText("2 sources");
   await expect(page.getByTestId("bibliographic-identity-status")).toContainText(
-    "2 observations · 2 exact workspace matches · 0 ambiguous",
+    "2 observations · 2 shared across sources · 0 resolved source identities · 0 ambiguous targets",
     { timeout: 10_000 },
   );
   await expect(page.getByTestId("bibliographic-identifier-card")).toHaveCount(2);
+  await expect(page.getByTestId("identity-target")).toHaveCount(0);
 });

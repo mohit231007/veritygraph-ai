@@ -86,6 +86,7 @@ export type AnalysisRun = {
   completed_at: string | null;
   duration_ms: number | null;
   source_count: number;
+  source_ids: string[];
   span_count: number;
   entity_count: number;
   relation_count: number;
@@ -196,4 +197,58 @@ export type GraphPath = {
   hop_count: number;
   entity_ids: string[];
   steps: GraphPathStep[];
+};
+
+export type ClaimSupportLevel = "single_source" | "cross_source";
+
+export type ComparisonClaim = {
+  relation_id: string;
+  subject_entity_id: string;
+  subject_label: string;
+  predicate: string;
+  object_entity_id: string;
+  object_label: string;
+  extraction_score: number;
+  support_level: ClaimSupportLevel;
+  source_count: number;
+  source_ids: string[];
+  evidence_count: number;
+  evidence: RelationEvidence[];
+};
+
+export type SourceClaimProfile = {
+  source_id: string;
+  label: string;
+  source_type: SourceDocument["source_type"] | null;
+  claim_count: number;
+  cross_source_claim_count: number;
+  single_source_claim_count: number;
+};
+
+export type SourcePairOverlap = {
+  left_source_id: string;
+  right_source_id: string;
+  shared_claim_count: number;
+  union_claim_count: number;
+  jaccard_similarity: number;
+  shared_relation_ids: string[];
+};
+
+export type SourceComparisonSummary = {
+  source_count: number;
+  claim_count: number;
+  cross_source_claim_count: number;
+  single_source_claim_count: number;
+  pair_count: number;
+};
+
+export type SourceComparison = {
+  run_id: string;
+  workspace_id: string;
+  comparison_version: string;
+  summary: SourceComparisonSummary;
+  sources: SourceClaimProfile[];
+  claims: ComparisonClaim[];
+  overlaps: SourcePairOverlap[];
+  interpretation_note: string;
 };

@@ -20,6 +20,8 @@ _REFERENCE_PRIORITY = {
     "html_anchor_in_retained_span_v1": 2,
     "docx_hyperlink_relationship_v1": 2,
     "pdf_link_annotation_v1": 2,
+    "mediawiki_inline_citation_v1": 3,
+    "mediawiki_reference_list_v1": 3,
 }
 
 
@@ -69,7 +71,7 @@ def _reference_id(
     return f"ref_{sha256(material.encode('utf-8')).hexdigest()[:24]}"
 
 
-def _build_reference(
+def build_source_reference(
     *,
     source_id: str,
     span_id: str | None,
@@ -80,7 +82,10 @@ def _build_reference(
     paragraph_number: int | None = None,
     anchor_text: str | None = None,
     context_text: str | None = None,
+    reference_text: str | None = None,
 ) -> SourceReference:
+    """Build one deterministic persisted source reference."""
+
     return SourceReference(
         reference_id=_reference_id(
             source_id,
@@ -96,6 +101,7 @@ def _build_reference(
         normalized_target_url=normalized_target_url,
         anchor_text=anchor_text,
         context_text=context_text,
+        reference_text=reference_text,
         extraction_method=extraction_method,
     )
 
@@ -119,7 +125,7 @@ def extract_visible_url_references(
                 continue
             seen.add(key)
             references.append(
-                _build_reference(
+                build_source_reference(
                     source_id=source_id,
                     span_id=span.span_id,
                     page_number=span.page_number,
@@ -170,7 +176,7 @@ def extract_retained_html_anchor_references(
         seen.add(key)
         anchor_text = _normalized_text(anchor.get_text(" ", strip=True)) or None
         references.append(
-            _build_reference(
+            build_source_reference(
                 source_id=source_id,
                 span_id=span.span_id,
                 page_number=span.page_number,
@@ -225,7 +231,7 @@ def extract_docx_hyperlink_references(
                 "".join(node.text or "" for node in hyperlink.iter(qn("w:t")))
             ) or None
             references.append(
-                _build_reference(
+                build_source_reference(
                     source_id=source_id,
                     span_id=matching_span.span_id if matching_span else None,
                     page_number=matching_span.page_number if matching_span else None,
@@ -278,7 +284,7 @@ def extract_pdf_link_annotation_references(
                     except Exception:
                         anchor_text = None
                 references.append(
-                    _build_reference(
+                    build_source_reference(
                         source_id=source_id,
                         span_id=span.span_id if span else None,
                         page_number=page_index,

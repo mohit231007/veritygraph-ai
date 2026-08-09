@@ -45,10 +45,19 @@ test("shared DOI mentions stay separate from source identity and citation topolo
     { timeout: 10_000 },
   );
   await expect(page.getByTestId("bibliographic-match-count")).toContainText("2");
+  await expect(page.getByTestId("cross-source-identifier-count")).toContainText("1");
   await expect(page.getByTestId("resolved-identity-target-count")).toContainText("0");
   await expect(page.getByTestId("bibliographic-identity-guardrail")).toContainText(
     "Shared identifier ≠ source identity. Source identity ≠ citation, endorsement, authorship, factual support, or truth",
   );
+
+  const explorer = page.getByTestId("bibliographic-explorer");
+  await expect(explorer).toContainText("1 unique identifier from 2 observations");
+  const group = page.getByTestId("bibliographic-identifier-group");
+  await expect(group).toHaveCount(1);
+  await expect(group).toContainText(normalizedDoi);
+  await expect(group).toContainText("2 observations · 2 sources");
+  await expect(group).toContainText("Cross-source");
 
   const cards = page.getByTestId("bibliographic-identifier-card");
   await expect(cards).toHaveCount(2);
@@ -58,6 +67,12 @@ test("shared DOI mentions stay separate from source identity and citation topolo
   await expect(cards.nth(1)).toContainText("Shared by one other source");
   await expect(cards.nth(0)).toContainText("Source mention");
   await expect(page.getByTestId("identity-target")).toHaveCount(0);
+
+  await page.getByTestId("bibliographic-search-input").fill("doi-left");
+  await expect(page.getByTestId("bibliographic-identifier-group")).toHaveCount(1);
+  await page.getByTestId("bibliographic-search-input").fill("no-such-identifier");
+  await expect(page.getByText("No unique identifier matches the current search and filters.")).toBeVisible();
+  await page.getByTestId("bibliographic-search-input").fill("");
 
   await expect(page.getByTestId("citation-graph-status")).toContainText(
     "2 sources · 0 directed edges · 0 unresolved · 0 ambiguous",
@@ -74,6 +89,7 @@ test("shared DOI mentions stay separate from source identity and citation topolo
     "2 observations · 2 shared across sources · 0 resolved source identities · 0 ambiguous targets",
     { timeout: 10_000 },
   );
+  await expect(page.getByTestId("bibliographic-identifier-group")).toHaveCount(1);
   await expect(page.getByTestId("bibliographic-identifier-card")).toHaveCount(2);
   await expect(page.getByTestId("identity-target")).toHaveCount(0);
   await expect(page.getByTestId("citation-graph-status")).toContainText(

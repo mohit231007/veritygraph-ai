@@ -1,7 +1,6 @@
 from datetime import UTC, datetime
 
 import pytest
-
 from app.domain.analysis import (
     AnalysisRun,
     AnalysisStatus,

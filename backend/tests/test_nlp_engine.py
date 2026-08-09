@@ -27,7 +27,11 @@ def bundle(source_id: str, span_id: str, text: str) -> SourceBundle:
 
 
 def entity_by_name(entities, name: str):
-    return next(entity for entity in entities if entity.canonical_name.casefold() == name.casefold())
+    return next(
+        entity
+        for entity in entities
+        if entity.canonical_name.casefold() == name.casefold()
+    )
 
 
 def test_spacy_engine_extracts_active_relation_with_exact_evidence() -> None:

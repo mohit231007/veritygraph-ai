@@ -63,7 +63,11 @@ def _isbn13_check_digit(first_twelve: str) -> str:
 
 
 def _valid_isbn13(value: str) -> bool:
-    return len(value) == 13 and value.isdigit() and _isbn13_check_digit(value[:12]) == value[-1]
+    return (
+        len(value) == 13
+        and value.isdigit()
+        and _isbn13_check_digit(value[:12]) == value[-1]
+    )
 
 
 def _valid_isbn10(value: str) -> bool:
@@ -246,13 +250,20 @@ def _from_text(
     return identifiers
 
 
-def _from_reference_url(
+def _identifier_from_supported_url(
     *,
     source_id: str,
-    reference: SourceReference,
+    url: str,
+    role: IdentifierObservationRole,
+    extraction_method: str,
+    reference_id: str | None = None,
+    span_id: str | None = None,
+    page_number: int | None = None,
+    paragraph_number: int | None = None,
+    context_text: str | None = None,
 ) -> list[SourceIdentifier]:
     try:
-        parsed = urlsplit(reference.target_url)
+        parsed = urlsplit(url)
     except ValueError:
         return []
     host = (parsed.hostname or "").rstrip(".").lower()
@@ -268,42 +279,71 @@ def _from_reference_url(
                 kind=BibliographicIdentifierKind.DOI,
                 raw_value=raw,
                 normalized_value=normalized,
-                role=IdentifierObservationRole.REFERENCE,
-                span_id=reference.span_id,
-                reference_id=reference.reference_id,
-                page_number=reference.page_number,
-                paragraph_number=reference.paragraph_number,
-                context_text=reference.reference_text or reference.context_text,
-                extraction_method="reference_url_identifier_v1",
+                role=role,
+                span_id=span_id,
+                reference_id=reference_id,
+                page_number=page_number,
+                paragraph_number=paragraph_number,
+                context_text=context_text or url,
+                extraction_method=extraction_method,
             )
         ]
 
     if host in _ARXIV_HOSTS:
         path = unquote(parsed.path).strip("/")
         for prefix in ("abs/", "pdf/"):
-            if path.startswith(prefix):
-                raw = path.removeprefix(prefix)
-                normalized = _normalize_arxiv(raw)
-                if normalized is None:
-                    return []
-                base, version = normalized
-                return [
-                    _build_identifier(
-                        source_id=source_id,
-                        kind=BibliographicIdentifierKind.ARXIV,
-                        raw_value=raw,
-                        normalized_value=base,
-                        role=IdentifierObservationRole.REFERENCE,
-                        span_id=reference.span_id,
-                        reference_id=reference.reference_id,
-                        page_number=reference.page_number,
-                        paragraph_number=reference.paragraph_number,
-                        version=version,
-                        context_text=reference.reference_text or reference.context_text,
-                        extraction_method="reference_url_identifier_v1",
-                    )
-                ]
+            if not path.startswith(prefix):
+                continue
+            raw = path.removeprefix(prefix)
+            normalized = _normalize_arxiv(raw)
+            if normalized is None:
+                return []
+            base, version = normalized
+            return [
+                _build_identifier(
+                    source_id=source_id,
+                    kind=BibliographicIdentifierKind.ARXIV,
+                    raw_value=raw,
+                    normalized_value=base,
+                    role=role,
+                    span_id=span_id,
+                    reference_id=reference_id,
+                    page_number=page_number,
+                    paragraph_number=paragraph_number,
+                    version=version,
+                    context_text=context_text or url,
+                    extraction_method=extraction_method,
+                )
+            ]
     return []
+
+
+def _from_reference_url(
+    *,
+    source_id: str,
+    reference: SourceReference,
+) -> list[SourceIdentifier]:
+    return _identifier_from_supported_url(
+        source_id=source_id,
+        url=reference.target_url,
+        role=IdentifierObservationRole.REFERENCE,
+        reference_id=reference.reference_id,
+        span_id=reference.span_id,
+        page_number=reference.page_number,
+        paragraph_number=reference.paragraph_number,
+        context_text=reference.reference_text or reference.context_text,
+        extraction_method="reference_url_identifier_v1",
+    )
+
+
+def _from_source_url(*, source_id: str, url: str) -> list[SourceIdentifier]:
+    return _identifier_from_supported_url(
+        source_id=source_id,
+        url=url,
+        role=IdentifierObservationRole.SOURCE_IDENTITY,
+        extraction_method="source_url_identifier_v1",
+        context_text=url,
+    )
 
 
 def extract_source_identifiers(
@@ -311,8 +351,9 @@ def extract_source_identifiers(
     source_id: str,
     spans: list[SourceSpan],
     references: list[SourceReference],
+    source_urls: list[str] | None = None,
 ) -> list[SourceIdentifier]:
-    """Retain explicit DOI/arXiv/ISBN observations without assigning citation semantics."""
+    """Retain identifiers while keeping mention, reference and source identity distinct."""
 
     observations: list[SourceIdentifier] = []
     for span in spans:
@@ -344,6 +385,9 @@ def extract_source_identifiers(
             )
         observations.extend(_from_reference_url(source_id=source_id, reference=reference))
 
+    for source_url in source_urls or []:
+        observations.extend(_from_source_url(source_id=source_id, url=source_url))
+
     chosen: dict[
         tuple[
             BibliographicIdentifierKind,
@@ -359,6 +403,7 @@ def extract_source_identifiers(
         "visible_bibliographic_identifier_v1": 1,
         "reference_text_identifier_v1": 2,
         "reference_url_identifier_v1": 3,
+        "source_url_identifier_v1": 4,
     }
     for observation in observations:
         key = (

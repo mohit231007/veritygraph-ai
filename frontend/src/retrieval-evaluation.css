@@ -1,0 +1,126 @@
+.retrieval-evaluation-panel {
+  border: 1px solid rgba(123, 148, 178, 0.18);
+  border-radius: 1rem;
+  padding: 1.2rem;
+  background: rgba(10, 18, 28, 0.76);
+}
+
+.retrieval-evaluation-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.retrieval-evaluation-heading h2 {
+  margin: 0.2rem 0 0;
+}
+
+.retrieval-evaluation-heading > span,
+.retrieval-evaluation-status,
+.retrieval-evaluation-cases footer {
+  color: #8496aa;
+  font-size: 0.78rem;
+}
+
+.retrieval-evaluation-form {
+  display: grid;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+
+.retrieval-evaluation-form > label,
+.retrieval-evaluation-actions label {
+  color: #a8b7c7;
+  font-size: 0.8rem;
+}
+
+.retrieval-evaluation-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 150px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.retrieval-evaluation-actions {
+  display: flex;
+  gap: 0.7rem;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.retrieval-evaluation-actions label {
+  display: grid;
+  gap: 0.3rem;
+  flex: 1;
+  min-width: 180px;
+}
+
+.retrieval-evaluation-summary,
+.retrieval-evaluation-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.65rem;
+  margin: 0.9rem 0;
+}
+
+.retrieval-evaluation-summary article,
+.retrieval-evaluation-metrics article,
+.retrieval-evaluation-cases article {
+  border: 1px solid rgba(123, 148, 178, 0.14);
+  border-radius: 0.8rem;
+  padding: 0.75rem;
+  background: rgba(16, 27, 40, 0.72);
+}
+
+.retrieval-evaluation-summary span {
+  display: block;
+  color: #8da0b5;
+  font-size: 0.72rem;
+}
+
+.retrieval-evaluation-summary strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 1.25rem;
+}
+
+.retrieval-evaluation-guardrail {
+  margin: 0.8rem 0 1rem;
+  padding: 0.8rem;
+  border-left: 3px solid rgba(191, 155, 101, 0.7);
+  background: rgba(54, 41, 20, 0.28);
+}
+
+.retrieval-evaluation-guardrail p {
+  margin: 0.35rem 0 0;
+  color: #9aa9b8;
+}
+
+.retrieval-evaluation-metrics p,
+.retrieval-evaluation-cases p {
+  color: #b5c0cc;
+}
+
+.retrieval-evaluation-cases {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.retrieval-evaluation-cases header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.retrieval-evaluation-cases header span {
+  color: #9eb2c8;
+  font-size: 0.76rem;
+}
+
+@media (max-width: 640px) {
+  .retrieval-evaluation-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

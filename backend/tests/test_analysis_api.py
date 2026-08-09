@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import pytest
-
 from app.core.config import get_settings
 from app.main import app
 from app.repositories.analysis_repository import (

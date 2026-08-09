@@ -234,6 +234,10 @@ export type ComparisonClaim = {
   source_ids: string[];
   evidence_count: number;
   evidence: RelationEvidence[];
+  distinct_content_count: number;
+  distinct_evidence_text_count: number;
+  content_duplicate_signal: boolean;
+  repeated_evidence_text_signal: boolean;
 };
 
 export type ContradictionCandidate = {
@@ -271,6 +275,12 @@ export type SourcePairOverlap = {
   union_claim_count: number;
   jaccard_similarity: number;
   shared_relation_ids: string[];
+  same_content_hash: boolean;
+  same_origin_host: boolean;
+  shared_origin_host: string | null;
+  exact_shared_evidence_text_count: number;
+  exact_shared_evidence_texts: string[];
+  possible_derivation_signal: boolean;
 };
 
 export type SourceComparisonSummary = {
@@ -280,6 +290,7 @@ export type SourceComparisonSummary = {
   single_source_claim_count: number;
   contradiction_candidate_count: number;
   pair_count: number;
+  possible_derivation_pair_count: number;
 };
 
 export type SourceComparison = {

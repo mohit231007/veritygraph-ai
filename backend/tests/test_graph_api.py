@@ -58,10 +58,12 @@ def test_graph_api_projects_latest_and_specific_analysis_run() -> None:
     assert latest.json() == by_run.json()
     graph = latest.json()
     assert graph["run_id"] == run_id
-    assert graph["graph_version"] == "evidence-graph-v1"
+    assert graph["graph_version"] == "evidence-graph-v2-polarity"
     assert graph["summary"]["node_count"] >= 2
     assert graph["summary"]["edge_count"] >= 1
-    assert any(edge["predicate"] == "acquire" for edge in graph["edges"])
+    edge = next(edge for edge in graph["edges"] if edge["predicate"] == "acquire")
+    assert edge["polarity"] == "affirmed"
+    assert edge["polarity_method"] == "dependency_no_root_negation_v1"
 
 
 def test_graph_path_api_returns_relation_linked_hop() -> None:

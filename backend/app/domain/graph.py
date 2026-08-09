@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from app.domain.analysis import RelationEvidence
+from app.domain.analysis import AssertionPolarity, RelationEvidence
 
 
 class GraphNode(BaseModel):
@@ -24,6 +24,8 @@ class GraphEdge(BaseModel):
     source_entity_id: str
     target_entity_id: str
     predicate: str
+    polarity: AssertionPolarity
+    polarity_method: str
     extraction_score: float = Field(ge=0.0, le=1.0)
     extraction_method: str
     evidence_count: int = Field(ge=0)

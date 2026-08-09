@@ -4,7 +4,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from app.domain.analysis import RelationEvidence
+from app.domain.analysis import AssertionPolarity, RelationEvidence
 from app.domain.source import SourceType
 
 
@@ -20,12 +20,31 @@ class ComparisonClaim(BaseModel):
     predicate: str
     object_entity_id: str
     object_label: str
+    polarity: AssertionPolarity
+    polarity_method: str
     extraction_score: float = Field(ge=0.0, le=1.0)
     support_level: ClaimSupportLevel
     source_count: int = Field(ge=1)
     source_ids: list[str]
     evidence_count: int = Field(ge=1)
     evidence: list[RelationEvidence]
+
+
+class ContradictionCandidate(BaseModel):
+    assertion_key: str
+    subject_entity_id: str
+    subject_label: str
+    predicate: str
+    object_entity_id: str
+    object_label: str
+    affirmed_relation_ids: list[str]
+    negated_relation_ids: list[str]
+    affirmed_source_ids: list[str]
+    negated_source_ids: list[str]
+    source_count: int = Field(ge=2)
+    evidence_count: int = Field(ge=2)
+    affirmed_evidence: list[RelationEvidence]
+    negated_evidence: list[RelationEvidence]
 
 
 class SourceClaimProfile(BaseModel):
@@ -35,6 +54,7 @@ class SourceClaimProfile(BaseModel):
     claim_count: int = Field(ge=0)
     cross_source_claim_count: int = Field(ge=0)
     single_source_claim_count: int = Field(ge=0)
+    contradiction_candidate_count: int = Field(ge=0)
 
 
 class SourcePairOverlap(BaseModel):
@@ -51,6 +71,7 @@ class SourceComparisonSummary(BaseModel):
     claim_count: int = Field(ge=0)
     cross_source_claim_count: int = Field(ge=0)
     single_source_claim_count: int = Field(ge=0)
+    contradiction_candidate_count: int = Field(ge=0)
     pair_count: int = Field(ge=0)
 
 
@@ -61,5 +82,6 @@ class SourceComparison(BaseModel):
     summary: SourceComparisonSummary
     sources: list[SourceClaimProfile]
     claims: list[ComparisonClaim]
+    contradictions: list[ContradictionCandidate]
     overlaps: list[SourcePairOverlap]
     interpretation_note: str

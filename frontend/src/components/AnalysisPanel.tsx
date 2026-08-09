@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import "../analysis.css";
-import type { AnalysisEntity, WorkspaceAnalysis, WorkspaceDetail } from "../types";
+import type { AnalysisEntity, AnalysisRelation, WorkspaceAnalysis, WorkspaceDetail } from "../types";
 
 type AnalysisState = "idle" | "loading" | "ready" | "error";
 
@@ -21,6 +21,12 @@ function entityAliases(entity: AnalysisEntity) {
   return Array.from(new Set(entity.mentions.map((mention) => mention.text))).filter(
     (alias) => alias.toLocaleLowerCase() !== canonical,
   );
+}
+
+function assertionVerb(relation: Pick<AnalysisRelation, "predicate" | "polarity">) {
+  if (relation.polarity === "negated") return `NOT ${relation.predicate}`;
+  if (relation.polarity === "unknown") return `? ${relation.predicate}`;
+  return relation.predicate;
 }
 
 export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange }: Props) {
@@ -81,7 +87,7 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
     if (!workspace || workspace.source_count === 0) return;
 
     setState("loading");
-    setMessage("Running local NER, relationship extraction and deterministic alias resolution…");
+    setMessage("Running local NER, relationship extraction, assertion polarity and deterministic alias resolution…");
     try {
       const response = await fetch(
         `/api/v1/workspaces/${workspace.workspace_id}/analyses`,
@@ -183,18 +189,20 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
 
             <section aria-labelledby="relations-heading">
               <div className="analysis-subheading">
-                <h3 id="relations-heading">Evidence-linked relations</h3>
-                <span>Rule score ≠ factual probability</span>
+                <h3 id="relations-heading">Evidence-linked assertions</h3>
+                <span>Polarity is explicit · rule score ≠ factual probability</span>
               </div>
               <div className="relation-list" data-testid="relation-list">
                 {analysis.relations.slice(0, 16).map((relation) => (
                   <article className="relation-card" key={relation.relation_id}>
                     <div className="relation-triplet">
                       <strong>{entityNames.get(relation.subject_entity_id) ?? relation.subject_entity_id}</strong>
-                      <span>{relation.predicate}</span>
+                      <span>{assertionVerb(relation)}</span>
                       <strong>{entityNames.get(relation.object_entity_id) ?? relation.object_entity_id}</strong>
                     </div>
                     <div className="relation-meta">
+                      <span>{relation.polarity.toUpperCase()}</span>
+                      <span>{relation.polarity_method.replaceAll("_", " ")}</span>
                       <span>Rule score {Math.round(relation.extraction_score * 100)}</span>
                       <span>{relation.extraction_method.replaceAll("_", " ")}</span>
                     </div>
@@ -208,7 +216,7 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
                 ))}
                 {analysis.relations.length === 0 && (
                   <p className="analysis-empty">
-                    No baseline subject/object relations were found. Evidence is preserved for future extractors.
+                    No baseline subject/object assertions were found. Evidence is preserved for future extractors.
                   </p>
                 )}
               </div>
@@ -216,11 +224,11 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
           </div>
 
           <aside className="score-callout">
-            <strong>Why “rule score” instead of confidence?</strong>
+            <strong>What do polarity and “rule score” mean?</strong>
             <p>
-              This number records which transparent extraction rule fired and its relative strength. It is not
-              calibrated against a labelled dataset yet, so VerityGraph does not present it as a probability that
-              the claim is true.
+              Polarity only records explicit dependency-root negation for new extractions; historical relations
+              without polarity remain unknown. The rule score records which transparent extraction rule fired and
+              its relative strength. Neither field is a probability that the claim is true.
             </p>
           </aside>
         </div>

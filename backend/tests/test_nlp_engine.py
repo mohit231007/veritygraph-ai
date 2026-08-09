@@ -1,3 +1,4 @@
+from app.domain.analysis import AssertionPolarity
 from app.domain.source import SourceBundle, SourceDocument, SourceSpan, SourceType
 from app.nlp.engine import SpacyNlpEngine
 
@@ -53,6 +54,8 @@ def test_spacy_engine_extracts_active_relation_with_exact_evidence() -> None:
         and item.predicate == "acquire"
     )
 
+    assert relation.polarity == AssertionPolarity.AFFIRMED
+    assert relation.polarity_method == "dependency_no_root_negation_v1"
     assert relation.extraction_score == 0.92
     assert relation.extraction_method == "dependency_subject_object"
     assert relation.evidence[0].span_id == "span_active"
@@ -78,8 +81,60 @@ def test_spacy_engine_normalizes_passive_voice_to_semantic_direction() -> None:
         and item.predicate == "acquire"
     )
 
+    assert relation.polarity == AssertionPolarity.AFFIRMED
     assert relation.extraction_method == "dependency_passive_agent"
     assert relation.extraction_score == 0.90
+
+
+def test_spacy_engine_marks_explicit_root_negation_without_rewriting_predicate() -> None:
+    text = "Microsoft did not acquire GitHub."
+    engine = SpacyNlpEngine()
+
+    entities, relations = engine.extract(
+        run_id="run_negated",
+        bundles=[bundle("src_negated", "span_negated", text)],
+    )
+
+    microsoft = entity_by_name(entities, "Microsoft")
+    github = entity_by_name(entities, "GitHub")
+    relation = next(
+        item
+        for item in relations
+        if item.subject_entity_id == microsoft.entity_id
+        and item.object_entity_id == github.entity_id
+        and item.predicate == "acquire"
+    )
+
+    assert relation.polarity == AssertionPolarity.NEGATED
+    assert relation.polarity_method == "dependency_root_negation_v1"
+    assert relation.evidence[0].text == text
+
+
+def test_spacy_engine_keeps_affirmed_and_negated_assertions_separate() -> None:
+    engine = SpacyNlpEngine()
+    bundles = [
+        bundle("src_yes", "span_yes", "Microsoft acquired GitHub."),
+        bundle("src_no", "span_no", "Microsoft did not acquire GitHub."),
+    ]
+
+    entities, relations = engine.extract(run_id="run_conflict", bundles=bundles)
+
+    microsoft = entity_by_name(entities, "Microsoft")
+    github = entity_by_name(entities, "GitHub")
+    matching = [
+        relation
+        for relation in relations
+        if relation.subject_entity_id == microsoft.entity_id
+        and relation.object_entity_id == github.entity_id
+        and relation.predicate == "acquire"
+    ]
+
+    assert len(matching) == 2
+    assert {relation.polarity for relation in matching} == {
+        AssertionPolarity.AFFIRMED,
+        AssertionPolarity.NEGATED,
+    }
+    assert {relation.evidence[0].source_id for relation in matching} == {"src_yes", "src_no"}
 
 
 def test_spacy_engine_consolidates_exact_entity_mentions_across_sources() -> None:

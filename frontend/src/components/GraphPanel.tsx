@@ -28,6 +28,12 @@ function percent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
+function edgeLabel(edge: Pick<GraphEdge, "predicate" | "polarity">) {
+  if (edge.polarity === "negated") return `NOT ${edge.predicate}`;
+  if (edge.polarity === "unknown") return `? ${edge.predicate}`;
+  return edge.predicate;
+}
+
 export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const cytoscapeRef = useRef<Core | null>(null);
@@ -74,7 +80,7 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
         setPathFrom(payload.nodes[0]?.entity_id ?? "");
         setPathTo(payload.nodes[1]?.entity_id ?? payload.nodes[0]?.entity_id ?? "");
         setStatusMessage(
-          `Graph ready · ${payload.summary.node_count} entities · ${payload.summary.edge_count} relations`,
+          `Graph ready · ${payload.summary.node_count} entities · ${payload.summary.edge_count} evidence assertions`,
         );
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -116,7 +122,8 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
             relationId: edge.relation_id,
             source: edge.source_entity_id,
             target: edge.target_entity_id,
-            label: edge.predicate,
+            label: edgeLabel(edge),
+            polarity: edge.polarity,
             evidenceCount: edge.evidence_count,
           },
         })),
@@ -154,6 +161,15 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
             "text-background-color": "#11182a",
             "text-background-opacity": 0.85,
             "text-background-padding": "3px",
+          },
+        },
+        {
+          selector: 'edge[polarity = "negated"]',
+          style: {
+            "line-style": "dashed",
+            "line-color": "#b27a84",
+            "target-arrow-color": "#b27a84",
+            color: "#e2a5ae",
           },
         },
         {
@@ -230,7 +246,7 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
 
   async function findPath() {
     if (!analysis || !pathFrom || !pathTo) return;
-    setPathMessage("Computing the fewest-hop evidence connection…");
+    setPathMessage("Computing the fewest-hop positive evidence connection…");
     const params = new URLSearchParams({
       source_entity_id: pathFrom,
       target_entity_id: pathTo,
@@ -248,7 +264,7 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
       const resolved = payload as GraphPath;
       setPath(resolved);
       setPathMessage(
-        `${resolved.hop_count} hop${resolved.hop_count === 1 ? "" : "s"} in the undirected evidence graph.`,
+        `${resolved.hop_count} hop${resolved.hop_count === 1 ? "" : "s"} in the undirected non-negated evidence graph.`,
       );
 
       const instance = cytoscapeRef.current;
@@ -295,8 +311,8 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
         <>
           <div className="graph-metrics" data-testid="graph-metrics">
             <article><span>Entities</span><strong>{graph.summary.node_count}</strong></article>
-            <article><span>Relations</span><strong>{graph.summary.edge_count}</strong></article>
-            <article><span>Density</span><strong>{percent(graph.summary.density)}</strong></article>
+            <article><span>Assertions</span><strong>{graph.summary.edge_count}</strong></article>
+            <article><span>Positive density</span><strong>{percent(graph.summary.density)}</strong></article>
             <article><span>Components</span><strong>{graph.summary.weak_component_count}</strong></article>
             <article><span>Communities</span><strong>{graph.summary.community_count}</strong></article>
           </div>
@@ -305,7 +321,7 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
             <div className="graph-canvas-wrap">
               <div ref={containerRef} className="graph-canvas" data-testid="graph-canvas" />
               <p className="graph-legend">
-                Node size follows PageRank · edge width follows evidence support · arrows preserve extracted direction.
+                Node analytics use non-negated evidence only · dashed NOT edges remain inspectable but never create positive paths.
               </p>
             </div>
 
@@ -313,7 +329,7 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
               {!selectedNode && !selectedEdge && (
                 <div className="inspector-empty">
                   <strong>Inspect the graph</strong>
-                  <p>Select an entity or relation on the canvas or from the evidence lists below.</p>
+                  <p>Select an entity or assertion on the canvas or from the evidence lists below.</p>
                 </div>
               )}
 
@@ -334,12 +350,15 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
 
               {selectedEdge && (
                 <div data-testid="graph-edge-detail">
-                  <p className="inspector-kicker">RELATION + EVIDENCE</p>
+                  <p className="inspector-kicker">ASSERTION + EVIDENCE</p>
                   <h3>
                     {nodeById.get(selectedEdge.source_entity_id)?.label ?? selectedEdge.source_entity_id}
-                    <span> {selectedEdge.predicate} </span>
+                    <span> {edgeLabel(selectedEdge)} </span>
                     {nodeById.get(selectedEdge.target_entity_id)?.label ?? selectedEdge.target_entity_id}
                   </h3>
+                  <p>
+                    {selectedEdge.polarity.toUpperCase()} · {selectedEdge.polarity_method.replaceAll("_", " ")}
+                  </p>
                   <p>
                     {selectedEdge.evidence_count} evidence record{selectedEdge.evidence_count === 1 ? "" : "s"}
                     {" · "}{selectedEdge.source_count} source{selectedEdge.source_count === 1 ? "" : "s"}
@@ -364,7 +383,7 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
             <section>
               <div className="graph-subheading">
                 <h3>Central entities</h3>
-                <span>Ranked by PageRank, then betweenness</span>
+                <span>Ranked on the non-negated structural projection</span>
               </div>
               <div className="graph-node-list" data-testid="graph-node-list">
                 {graph.nodes.slice(0, 12).map((node, index) => (
@@ -379,17 +398,17 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
 
             <section>
               <div className="graph-subheading">
-                <h3>Evidence relations</h3>
-                <span>Every edge keeps its source sentence lineage</span>
+                <h3>Evidence assertions</h3>
+                <span>Every edge keeps polarity and source sentence lineage</span>
               </div>
               <div className="graph-edge-list" data-testid="graph-edge-list">
                 {graph.edges.slice(0, 20).map((edge) => (
                   <button type="button" key={edge.relation_id} onClick={() => selectEdge(edge)}>
                     <strong>{nodeById.get(edge.source_entity_id)?.label ?? edge.source_entity_id}</strong>
-                    <span>{edge.predicate}</span>
+                    <span>{edgeLabel(edge)}</span>
                     <strong>{nodeById.get(edge.target_entity_id)?.label ?? edge.target_entity_id}</strong>
                     <small>
-                      {edge.evidence_count} evidence · {edge.source_count} source{edge.source_count === 1 ? "" : "s"}
+                      {edge.polarity.toUpperCase()} · {edge.evidence_count} evidence · {edge.source_count} source{edge.source_count === 1 ? "" : "s"}
                     </small>
                   </button>
                 ))}
@@ -400,7 +419,7 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
           <section className="path-finder" aria-labelledby="path-heading">
             <div className="graph-subheading">
               <h3 id="path-heading">Connection path</h3>
-              <span>Fewest hops in the undirected evidence projection</span>
+              <span>Fewest hops in the undirected non-negated evidence projection</span>
             </div>
             <div className="path-controls">
               <select

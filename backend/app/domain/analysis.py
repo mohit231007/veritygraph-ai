@@ -12,6 +12,12 @@ class AnalysisStatus(StrEnum):
     FAILED = "failed"
 
 
+class AssertionPolarity(StrEnum):
+    UNKNOWN = "unknown"
+    AFFIRMED = "affirmed"
+    NEGATED = "negated"
+
+
 class AnalysisRun(BaseModel):
     run_id: str
     workspace_id: str
@@ -68,6 +74,8 @@ class Relation(BaseModel):
     subject_entity_id: str
     predicate: str
     object_entity_id: str
+    polarity: AssertionPolarity = AssertionPolarity.AFFIRMED
+    polarity_method: str = "default_affirmed_v1"
     extraction_score: float = Field(ge=0.0, le=1.0)
     extraction_method: str
     evidence: list[RelationEvidence] = Field(default_factory=list)

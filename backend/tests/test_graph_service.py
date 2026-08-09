@@ -1,15 +1,21 @@
 from datetime import UTC, datetime
 
+import pytest
 from app.domain.analysis import (
     AnalysisRun,
     AnalysisStatus,
+    AssertionPolarity,
     Entity,
     EntityMention,
     Relation,
     RelationEvidence,
     WorkspaceAnalysis,
 )
-from app.services.graph import build_evidence_graph, shortest_connection_path
+from app.services.graph import (
+    GraphPathNotFoundError,
+    build_evidence_graph,
+    shortest_connection_path,
+)
 
 
 def mention(entity_id: str, source_id: str, index: int) -> EntityMention:
@@ -43,6 +49,8 @@ def relation(
     target: str,
     predicate: str,
     evidence_sources: list[str],
+    *,
+    polarity: AssertionPolarity = AssertionPolarity.AFFIRMED,
 ) -> Relation:
     evidence = [
         RelationEvidence(
@@ -62,6 +70,12 @@ def relation(
         subject_entity_id=source,
         predicate=predicate,
         object_entity_id=target,
+        polarity=polarity,
+        polarity_method=(
+            "dependency_root_negation_v1"
+            if polarity == AssertionPolarity.NEGATED
+            else "dependency_no_root_negation_v1"
+        ),
         extraction_score=0.92,
         extraction_method="dependency_subject_object",
         evidence=evidence,
@@ -77,7 +91,7 @@ def analysis_fixture() -> WorkspaceAnalysis:
             pipeline_version="spacy-baseline-v1",
             model_name="en_core_web_sm",
             model_version="3.8.0",
-            extractor_version="dependency-relations-v1",
+            extractor_version="dependency-relations-v2-polarity",
             started_at=datetime.now(UTC),
             completed_at=datetime.now(UTC),
             source_count=3,
@@ -104,7 +118,7 @@ def test_graph_projection_preserves_relations_and_computes_analytics() -> None:
 
     assert graph.run_id == "run_graph"
     assert graph.workspace_id == "ws_graph"
-    assert graph.graph_version == "evidence-graph-v1"
+    assert graph.graph_version == "evidence-graph-v2-polarity"
     assert graph.summary.node_count == 4
     assert graph.summary.edge_count == 3
     assert graph.summary.weak_component_count == 1
@@ -121,6 +135,7 @@ def test_graph_projection_preserves_relations_and_computes_analytics() -> None:
     edge = next(item for item in graph.edges if item.relation_id == "rel_ab")
     assert edge.source_entity_id == "ent_a"
     assert edge.target_entity_id == "ent_b"
+    assert edge.polarity == AssertionPolarity.AFFIRMED
     assert edge.evidence_count == 2
     assert edge.source_count == 2
     assert {item.source_id for item in edge.evidence} == {"src_1", "src_2"}
@@ -138,3 +153,33 @@ def test_shortest_connection_path_is_undirected_and_relation_linked() -> None:
     assert path.entity_ids == ["ent_a", "ent_b", "ent_c"]
     assert path.steps[0].relation_ids == ["rel_ab"]
     assert path.steps[1].relation_ids == ["rel_bc"]
+
+
+def test_negated_edge_is_retained_but_excluded_from_positive_graph_path() -> None:
+    analysis = analysis_fixture()
+    analysis.relations = [
+        relation(
+            "rel_negated",
+            "ent_a",
+            "ent_c",
+            "acquire",
+            ["src_1"],
+            polarity=AssertionPolarity.NEGATED,
+        )
+    ]
+    analysis.run.relation_count = 1
+
+    graph = build_evidence_graph(analysis)
+
+    assert graph.summary.edge_count == 1
+    edge = graph.edges[0]
+    assert edge.relation_id == "rel_negated"
+    assert edge.polarity == AssertionPolarity.NEGATED
+    assert graph.summary.density == 0.0
+
+    with pytest.raises(GraphPathNotFoundError):
+        shortest_connection_path(
+            analysis,
+            source_entity_id="ent_a",
+            target_entity_id="ent_c",
+        )

@@ -10,6 +10,7 @@ from app.core.config import get_settings
 from app.domain.analysis import (
     AnalysisRun,
     AnalysisStatus,
+    AssertionPolarity,
     Entity,
     EntityMention,
     Relation,
@@ -118,6 +119,8 @@ class SqliteAnalysisRepository:
                     subject_entity_id TEXT NOT NULL,
                     predicate TEXT NOT NULL,
                     object_entity_id TEXT NOT NULL,
+                    polarity TEXT NOT NULL DEFAULT 'unknown',
+                    polarity_method TEXT NOT NULL DEFAULT 'historical_unknown',
                     extraction_score REAL NOT NULL,
                     extraction_method TEXT NOT NULL,
                     FOREIGN KEY(run_id) REFERENCES analysis_runs(run_id) ON DELETE CASCADE,
@@ -154,6 +157,25 @@ class SqliteAnalysisRepository:
                     """
                     ALTER TABLE analysis_runs
                     ADD COLUMN resolver_version TEXT NOT NULL DEFAULT 'none'
+                    """
+                )
+
+            relation_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(analysis_relations)").fetchall()
+            }
+            if "polarity" not in relation_columns:
+                connection.execute(
+                    """
+                    ALTER TABLE analysis_relations
+                    ADD COLUMN polarity TEXT NOT NULL DEFAULT 'unknown'
+                    """
+                )
+            if "polarity_method" not in relation_columns:
+                connection.execute(
+                    """
+                    ALTER TABLE analysis_relations
+                    ADD COLUMN polarity_method TEXT NOT NULL DEFAULT 'historical_unknown'
                     """
                 )
 
@@ -256,8 +278,9 @@ class SqliteAnalysisRepository:
                     """
                     INSERT INTO analysis_relations (
                         relation_id, run_id, subject_entity_id, predicate,
-                        object_entity_id, extraction_score, extraction_method
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        object_entity_id, polarity, polarity_method,
+                        extraction_score, extraction_method
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         relation.relation_id,
@@ -265,6 +288,8 @@ class SqliteAnalysisRepository:
                         relation.subject_entity_id,
                         relation.predicate,
                         relation.object_entity_id,
+                        relation.polarity.value,
+                        relation.polarity_method,
                         relation.extraction_score,
                         relation.extraction_method,
                     ),
@@ -428,6 +453,8 @@ class SqliteAnalysisRepository:
             subject_entity_id=row["subject_entity_id"],
             predicate=row["predicate"],
             object_entity_id=row["object_entity_id"],
+            polarity=AssertionPolarity(row["polarity"]),
+            polarity_method=row["polarity_method"],
             extraction_score=row["extraction_score"],
             extraction_method=row["extraction_method"],
             evidence=[

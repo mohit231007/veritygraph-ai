@@ -11,7 +11,13 @@ import spacy
 from spacy.language import Language
 from spacy.tokens import Span, Token
 
-from app.domain.analysis import Entity, EntityMention, Relation, RelationEvidence
+from app.domain.analysis import (
+    AssertionPolarity,
+    Entity,
+    EntityMention,
+    Relation,
+    RelationEvidence,
+)
 from app.domain.source import SourceBundle, SourceSpan
 
 DEFAULT_ENTITY_LABELS = {
@@ -65,6 +71,14 @@ def _predicate(root: Token, prep: Token | None = None) -> str:
     return " ".join(part for part in parts if part)
 
 
+def _assertion_polarity(root: Token) -> tuple[AssertionPolarity, str]:
+    """Classify explicit dependency negation without inferring broader semantics."""
+
+    if any(child.dep_ == "neg" for child in root.children):
+        return AssertionPolarity.NEGATED, "dependency_root_negation_v1"
+    return AssertionPolarity.AFFIRMED, "dependency_no_root_negation_v1"
+
+
 def _sentence_evidence(
     *,
     relation_id: str,
@@ -87,10 +101,12 @@ class SpacyNlpEngine:
 
     Relation scores are transparent extraction-rule scores. They are not calibrated
     probabilities and must not be presented to users as factual confidence.
+    Assertion polarity is limited to explicit dependency-root negation; it is not
+    a general natural-language-inference or factuality model.
     """
 
     PIPELINE_VERSION = "spacy-baseline-v1"
-    EXTRACTOR_VERSION = "dependency-relations-v1"
+    EXTRACTOR_VERSION = "dependency-relations-v2-polarity"
 
     def __init__(
         self,
@@ -186,7 +202,7 @@ class SpacyNlpEngine:
         span_documents: list[SpanDocument],
         mention_index: dict[tuple[str, int, int], str],
     ) -> list[Relation]:
-        aggregated: dict[tuple[str, str, str], Relation] = {}
+        aggregated: dict[tuple[str, str, str, AssertionPolarity], Relation] = {}
         evidence_keys: dict[str, set[tuple[str, int, int]]] = defaultdict(set)
 
         for item in span_documents:
@@ -209,6 +225,7 @@ class SpacyNlpEngine:
                     for ent in sentence_entities
                 }
                 root = sentence.root
+                polarity, polarity_method = _assertion_polarity(root)
                 subjects = [
                     ent
                     for ent in sentence_entities
@@ -244,6 +261,8 @@ class SpacyNlpEngine:
                             subject_id=entity_id_by_span[(subject.start_char, subject.end_char)],
                             predicate=_predicate(root),
                             object_id=entity_id_by_span[(obj.start_char, obj.end_char)],
+                            polarity=polarity,
+                            polarity_method=polarity_method,
                             extraction_score=0.92,
                             extraction_method="dependency_subject_object",
                         )
@@ -260,6 +279,8 @@ class SpacyNlpEngine:
                             subject_id=entity_id_by_span[(subject.start_char, subject.end_char)],
                             predicate=_predicate(root, prep),
                             object_id=entity_id_by_span[(obj.start_char, obj.end_char)],
+                            polarity=polarity,
+                            polarity_method=polarity_method,
                             extraction_score=0.84,
                             extraction_method="dependency_subject_preposition_object",
                         )
@@ -282,18 +303,26 @@ class SpacyNlpEngine:
                             object_id=entity_id_by_span[
                                 (passive_object.start_char, passive_object.end_char)
                             ],
+                            polarity=polarity,
+                            polarity_method=polarity_method,
                             extraction_score=0.90,
                             extraction_method="dependency_passive_agent",
                         )
 
         relations = list(aggregated.values())
-        relations.sort(key=lambda relation: (-relation.extraction_score, relation.predicate))
+        relations.sort(
+            key=lambda relation: (
+                -relation.extraction_score,
+                relation.predicate,
+                relation.polarity.value,
+            )
+        )
         return relations
 
     @staticmethod
     def _add_relation(
         *,
-        aggregated: dict[tuple[str, str, str], Relation],
+        aggregated: dict[tuple[str, str, str, AssertionPolarity], Relation],
         evidence_keys: dict[str, set[tuple[str, int, int]]],
         run_id: str,
         source_span: SourceSpan,
@@ -301,12 +330,14 @@ class SpacyNlpEngine:
         subject_id: str | None,
         predicate: str,
         object_id: str | None,
+        polarity: AssertionPolarity,
+        polarity_method: str,
         extraction_score: float,
         extraction_method: str,
     ) -> None:
         if not subject_id or not object_id or subject_id == object_id or not predicate:
             return
-        key = (subject_id, predicate, object_id)
+        key = (subject_id, predicate, object_id, polarity)
         relation = aggregated.get(key)
         if relation is None:
             relation = Relation(
@@ -315,6 +346,8 @@ class SpacyNlpEngine:
                 subject_entity_id=subject_id,
                 predicate=predicate,
                 object_entity_id=object_id,
+                polarity=polarity,
+                polarity_method=polarity_method,
                 extraction_score=extraction_score,
                 extraction_method=extraction_method,
                 evidence=[],

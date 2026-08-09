@@ -1,0 +1,41 @@
+.claim-diversity {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin: 0.7rem 0;
+}
+
+.claim-diversity span {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid rgba(115, 210, 183, 0.22);
+  border-radius: 999px;
+  background: rgba(31, 68, 59, 0.24);
+  color: #9dd9c9;
+  font-size: 0.72rem;
+}
+
+.relationship-signal {
+  border-color: rgba(219, 191, 108, 0.32) !important;
+  background: rgba(50, 43, 20, 0.24) !important;
+}
+
+.overlap-list article ul {
+  margin: 0.55rem 0;
+  padding-left: 1.15rem;
+  color: #a6b2bf;
+  font-size: 0.78rem;
+}
+
+.overlap-list article > strong {
+  display: block;
+  margin-top: 0.55rem;
+  color: #e4d49c;
+  font-size: 0.78rem;
+}
+
+.overlap-list article > em {
+  display: block;
+  margin-top: 0.55rem;
+  color: #8496aa;
+  font-size: 0.76rem;
+}

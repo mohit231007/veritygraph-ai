@@ -25,6 +25,9 @@ class ReferenceLineageEdge(BaseModel):
     target_labels: list[str] = Field(default_factory=list)
     anchor_text: str | None = None
     context_text: str | None = None
+    reference_text: str | None = None
+    citation_label: str | None = None
+    citation_marker: str | None = None
     extraction_method: str
     self_reference: bool = False
 

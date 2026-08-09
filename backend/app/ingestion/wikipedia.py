@@ -45,6 +45,13 @@ def _normalize_text(value: str) -> str:
     return " ".join(value.split()).strip()
 
 
+def _normalize_reference_text(value: str) -> str:
+    normalized = _normalize_text(value)
+    for punctuation in (".", ",", ";", ":", "!", "?", ")", "]", "}"):
+        normalized = normalized.replace(f" {punctuation}", punctuation)
+    return normalized
+
+
 def _plain_text(html: str) -> str:
     soup = BeautifulSoup(unescape(html), "html.parser")
     return _normalize_text(soup.get_text(" ", strip=True))
@@ -101,7 +108,7 @@ def _reference_entry_text(node: Tag) -> str:
     for backlink in clone.select(".mw-cite-backlink"):
         backlink.decompose()
     root = clone.find(node.name)
-    return _normalize_text(root.get_text(" ", strip=True)) if root else ""
+    return _normalize_reference_text(root.get_text(" ", strip=True)) if root else ""
 
 
 def _reference_catalog(

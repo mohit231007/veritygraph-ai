@@ -19,6 +19,9 @@ type ReferenceLineageEdge = {
   target_labels: string[];
   anchor_text: string | null;
   context_text: string | null;
+  reference_text: string | null;
+  citation_label: string | null;
+  citation_marker: string | null;
   extraction_method: string;
   self_reference: boolean;
 };
@@ -59,6 +62,8 @@ function locatorLabel(edge: ReferenceLineageEdge) {
   const parts: string[] = [];
   if (edge.page_number !== null) parts.push(`Page ${edge.page_number}`);
   if (edge.paragraph_number !== null) parts.push(`Paragraph ${edge.paragraph_number}`);
+  if (edge.citation_label) parts.push(`Citation ${edge.citation_label}`);
+  if (edge.citation_marker) parts.push(edge.citation_marker);
   if (edge.span_id) parts.push(edge.span_id);
   return parts.join(" · ");
 }
@@ -142,7 +147,12 @@ export default function ReferenceLineagePanel({ apiHealthy, workspace }: Props) 
                   <p className="reference-target">{edge.normalized_target_url}</p>
                   {locator && <p data-testid="reference-locator">{locator}</p>}
                   {edge.anchor_text && <p>Anchor · {edge.anchor_text}</p>}
-                  {edge.context_text && <blockquote>“{edge.context_text}”</blockquote>}
+                  {edge.context_text && (
+                    <blockquote data-testid="reference-citing-context">“{edge.context_text}”</blockquote>
+                  )}
+                  {edge.reference_text && (
+                    <p data-testid="reference-entry">Reference entry · {edge.reference_text}</p>
+                  )}
                   <footer>
                     {edge.extraction_method}
                     {edge.self_reference ? " · self-reference" : ""}

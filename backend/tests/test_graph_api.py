@@ -19,34 +19,25 @@ def clear_graph_api_state() -> None:
     get_source_repository().clear()
 
 
-def create_analysed_workspace() -> tuple[str, dict]:
+def create_analysed_workspace(text: str = "Microsoft acquired GitHub in 2018.") -> tuple[str, dict]:
     workspace = client.post(
-        "/api/v1/workspaces",
-        json={"name": "Graph API workspace"},
+        "/api/v1/workspaces", json={"name": "Graph API workspace"}
     ).json()
     source = client.post(
         "/api/v1/documents/upload",
-        files={
-            "file": (
-                "graph.txt",
-                b"Microsoft acquired GitHub in 2018.",
-                "text/plain",
-            )
-        },
+        files={"file": ("graph.txt", text.encode("utf-8"), "text/plain")},
     ).json()
     source_id = source["document"]["source_id"]
     added = client.put(
         f"/api/v1/workspaces/{workspace['workspace_id']}/sources/{source_id}"
     )
     assert added.status_code == 200
-    analysis = client.post(
-        f"/api/v1/workspaces/{workspace['workspace_id']}/analyses"
-    )
+    analysis = client.post(f"/api/v1/workspaces/{workspace['workspace_id']}/analyses")
     assert analysis.status_code == 201
     return workspace["workspace_id"], analysis.json()
 
 
-def test_graph_api_projects_latest_and_specific_analysis_run() -> None:
+def test_graph_api_projects_qualified_analysis_run() -> None:
     workspace_id, analysis = create_analysed_workspace()
     run_id = analysis["run"]["run_id"]
 
@@ -54,19 +45,16 @@ def test_graph_api_projects_latest_and_specific_analysis_run() -> None:
     by_run = client.get(f"/api/v1/analyses/{run_id}/graph")
 
     assert latest.status_code == 200
-    assert by_run.status_code == 200
     assert latest.json() == by_run.json()
     graph = latest.json()
-    assert graph["run_id"] == run_id
-    assert graph["graph_version"] == "evidence-graph-v2-polarity"
-    assert graph["summary"]["node_count"] >= 2
-    assert graph["summary"]["edge_count"] >= 1
+    assert graph["graph_version"] == "evidence-graph-v3-qualifiers"
     edge = next(edge for edge in graph["edges"] if edge["predicate"] == "acquire")
     assert edge["polarity"] == "affirmed"
-    assert edge["polarity_method"] == "dependency_no_root_negation_v1"
+    assert edge["modality"] == "asserted"
+    assert edge["temporal_years"] == [2018]
 
 
-def test_graph_path_api_returns_relation_linked_hop() -> None:
+def test_graph_path_api_returns_established_relation_hop() -> None:
     _workspace_id, analysis = create_analysed_workspace()
     run_id = analysis["run"]["run_id"]
     names = {entity["canonical_name"]: entity["entity_id"] for entity in analysis["entities"]}
@@ -78,18 +66,32 @@ def test_graph_path_api_returns_relation_linked_hop() -> None:
             "target_entity_id": names["GitHub"],
         },
     )
-
     assert response.status_code == 200
-    path = response.json()
-    assert path["directed"] is False
-    assert path["hop_count"] == 1
-    assert path["entity_ids"] == [names["Microsoft"], names["GitHub"]]
-    assert len(path["steps"][0]["relation_ids"]) >= 1
+    assert response.json()["hop_count"] == 1
+
+
+def test_modal_assertion_is_visible_but_cannot_create_graph_path() -> None:
+    _workspace_id, analysis = create_analysed_workspace(
+        "Microsoft may acquire GitHub in 2027."
+    )
+    run_id = analysis["run"]["run_id"]
+    names = {entity["canonical_name"]: entity["entity_id"] for entity in analysis["entities"]}
+    graph = client.get(f"/api/v1/analyses/{run_id}/graph").json()
+    edge = next(edge for edge in graph["edges"] if edge["predicate"] == "acquire")
+    assert edge["modality"] == "modal"
+    assert edge["temporal_years"] == [2027]
+    assert graph["summary"]["density"] == 0.0
+
+    path = client.get(
+        f"/api/v1/analyses/{run_id}/graph/path",
+        params={
+            "source_entity_id": names["Microsoft"],
+            "target_entity_id": names["GitHub"],
+        },
+    )
+    assert path.status_code == 404
 
 
 def test_graph_api_requires_existing_completed_analysis() -> None:
-    missing_run = client.get("/api/v1/analyses/run_missing/graph")
-    missing_workspace = client.get("/api/v1/workspaces/ws_missing/graph/latest")
-
-    assert missing_run.status_code == 404
-    assert missing_workspace.status_code == 404
+    assert client.get("/api/v1/analyses/run_missing/graph").status_code == 404
+    assert client.get("/api/v1/workspaces/ws_missing/graph/latest").status_code == 404

@@ -9,7 +9,12 @@ from fastapi import UploadFile
 from app.domain.source import SourceBundle, SourceDocument, SourceType
 from app.ingestion.documents import PARSERS
 from app.repositories.source_repository import SourceRepository
-from app.services.source_references import extract_visible_url_references
+from app.services.source_references import (
+    extract_docx_hyperlink_references,
+    extract_pdf_link_annotation_references,
+    extract_visible_url_references,
+    merge_references,
+)
 
 
 class UploadValidationError(ValueError):
@@ -40,6 +45,31 @@ def _safe_filename(filename: str | None) -> str:
     if not safe or safe in {".", ".."}:
         raise UploadValidationError("A valid filename is required.")
     return safe
+
+
+def _format_references(
+    *,
+    extension: str,
+    source_id: str,
+    content: bytes,
+    spans,
+):
+    visible = extract_visible_url_references(source_id, spans)
+    if extension == ".docx":
+        hidden = extract_docx_hyperlink_references(
+            source_id=source_id,
+            content=content,
+            spans=spans,
+        )
+        return merge_references(visible, hidden)
+    if extension == ".pdf":
+        annotations = extract_pdf_link_annotation_references(
+            source_id=source_id,
+            content=content,
+            spans=spans,
+        )
+        return merge_references(visible, annotations)
+    return visible
 
 
 async def ingest_document_upload(
@@ -75,7 +105,12 @@ async def ingest_document_upload(
 
     source_id = f"src_{uuid4().hex}"
     spans = PARSERS[extension](source_id, content)
-    references = extract_visible_url_references(source_id, spans)
+    references = _format_references(
+        extension=extension,
+        source_id=source_id,
+        content=content,
+        spans=spans,
+    )
 
     document = SourceDocument(
         source_id=source_id,

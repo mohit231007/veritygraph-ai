@@ -20,6 +20,7 @@ class AnalysisRun(BaseModel):
     model_name: str
     model_version: str
     extractor_version: str
+    resolver_version: str = "none"
     started_at: datetime
     completed_at: datetime | None = None
     duration_ms: int | None = Field(default=None, ge=0)

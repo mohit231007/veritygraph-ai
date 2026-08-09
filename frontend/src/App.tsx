@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import AnalysisPanel from "./components/AnalysisPanel";
 import BibliographicIdentityPanel from "./components/BibliographicIdentityPanel";
+import CitationGraphPanel from "./components/CitationGraphPanel";
 import ComparisonPanel from "./components/ComparisonPanel";
 import DocumentWorkspace from "./components/DocumentWorkspace";
 import GraphPanel from "./components/GraphPanel";
@@ -90,6 +91,11 @@ export default function App() {
       />
 
       <BibliographicIdentityPanel
+        apiHealthy={apiState === "healthy"}
+        workspace={activeWorkspace}
+      />
+
+      <CitationGraphPanel
         apiHealthy={apiState === "healthy"}
         workspace={activeWorkspace}
       />

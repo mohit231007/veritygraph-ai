@@ -33,7 +33,7 @@ Public URL ───────┘             |
                   v                         v
          EvidenceGraph projection    Source comparison
           established analytics      support + scoped conflict
-                  |                         |
+                  |                  + relationship signals
                   +------------+------------+
                                |
                                v
@@ -71,7 +71,7 @@ The graph and comparison layers are deterministic projections of one immutable a
 - `domain`: canonical source, analysis, entity, qualified relation, evidence, graph, comparison, feedback, and run models.
 - `nlp`: NER, relation extraction, conservative assertion qualifiers, deterministic entity resolution, and future calibrated adapters.
 - `graph`: deterministic analysis-run projection, established structural algorithms, paths, and future storage adapters.
-- `comparison`: deterministic corroboration, source overlap, and strict evidence-backed scoped contradiction candidates.
+- `comparison`: deterministic corroboration, source overlap, source-relationship review signals, and strict evidence-backed scoped contradiction candidates.
 - `insights`: source-derived facts and computed graph observations.
 - `rag`: optional local synthesis over explicitly selected evidence.
 - `api`: HTTP contracts only; orchestration belongs in services.
@@ -121,6 +121,37 @@ The following never creates a contradiction candidate by itself:
 
 A candidate means only that VerityGraph retained incompatible evidence worth reviewing. It does not decide which source is correct.
 
+## Source relationship boundary
+
+Distinct source IDs establish storage/run membership, not independent reporting.
+
+The comparison projection therefore exposes evidence diversity and pairwise relationship review signals separately from ordinary claim overlap.
+
+For a qualified relation, the projection records:
+
+```text
+source_count
+distinct_content_fingerprint_count
+distinct_evidence_text_count
+```
+
+For each source pair it records a `SourceRelationshipSignal` containing:
+
+```text
+normalized origin hosts
+exact persisted content-fingerprint match
+exact normalized supporting-text overlap count
+relation IDs with exact evidence overlap
+review reasons
+possible_derivation_signal
+```
+
+`possible_derivation_signal` is raised only by an exact content-fingerprint match or exact normalized supporting-text overlap on the same resolved relation. Same-origin host is contextual and is not sufficient by itself.
+
+These signals are intentionally non-causal. They do not prove copying, common upstream sourcing, editorial dependence, source independence, authority, or factual truth. Absence of a detected signal does not prove independence.
+
+Source relationship signals currently do not change graph topology, contradiction promotion, or extraction scores. They are review context over the same immutable run.
+
 ## Storage strategy
 
 SQLite stores canonical sources, workspaces, immutable analysis runs, resolved entities, qualified relations, and evidence. Each run stores its model, extractor, and resolver versions.
@@ -128,6 +159,8 @@ SQLite stores canonical sources, workspaces, immutable analysis runs, resolved e
 Existing databases are migrated in place. Historical polarity/modality are `unknown`; historical temporal method is `historical_unknown`; explicit year lists remain empty rather than receiving reconstructed dates.
 
 NetworkX graphs and source comparisons are regenerated from the immutable analysis run rather than persisted as separate mutable truth representations.
+
+Source relationship signals use already persisted source metadata (`content_hash`, URL) and retained relation evidence. No new mutable truth table is introduced for the v4 comparison projection.
 
 ## Graph analytics boundary
 

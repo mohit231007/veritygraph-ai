@@ -31,7 +31,7 @@ class ComparisonClaim(BaseModel):
 class SourceClaimProfile(BaseModel):
     source_id: str
     label: str
-    source_type: SourceType
+    source_type: SourceType | None = None
     claim_count: int = Field(ge=0)
     cross_source_claim_count: int = Field(ge=0)
     single_source_claim_count: int = Field(ge=0)

@@ -40,7 +40,7 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2.10-alpine
+    image: caddy:2-alpine
     depends_on:
       frontend:
         condition: service_started

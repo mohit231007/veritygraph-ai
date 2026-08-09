@@ -15,13 +15,13 @@ from app.repositories.source_repository import SourceRepository
 LINEAGE_VERSION = "bibliographic-identity-lineage-v1"
 INTERPRETATION_NOTE = (
     "Bibliographic identity lineage contains only explicit DOI, arXiv, and validated ISBN "
-    "observations retained during ingestion. Exact normalized matches connect workspace sources "
-    "by identifier identity only; they do not prove citation, endorsement, authorship, factual "
-    "support, dependence, copying, or truth. A reference-linked observation means the identifier "
-    "was observed inside retained reference text or a supported reference URL, while an ordinary "
-    "mention is not promoted to a citation. ISBN-10 observations are normalized to their valid "
-    "ISBN-13 equivalent. arXiv base identifiers are matched across optional version suffixes, "
-    "with the observed version retained separately. No registry or network lookup occurs here."
+    "observations retained during ingestion. An exact normalized identifier match does not prove "
+    "citation, endorsement, authorship, factual support, dependence, copying, or truth. A "
+    "reference-linked observation means the identifier was observed inside retained reference "
+    "text or a supported reference URL, while an ordinary mention is not promoted to a citation. "
+    "ISBN-10 observations are normalized to their valid ISBN-13 equivalent. arXiv base identifiers "
+    "are matched across optional version suffixes, with the observed version retained separately. "
+    "No registry or network lookup occurs here."
 )
 
 

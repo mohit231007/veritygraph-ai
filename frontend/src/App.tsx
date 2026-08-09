@@ -8,6 +8,7 @@ import DocumentWorkspace from "./components/DocumentWorkspace";
 import GraphPanel from "./components/GraphPanel";
 import PublicUrlWorkspace from "./components/PublicUrlWorkspace";
 import ReferenceLineagePanel from "./components/ReferenceLineagePanel";
+import RetrievalPreviewPanel from "./components/RetrievalPreviewPanel";
 import SourcePreview from "./components/SourcePreview";
 import WikipediaWorkspace from "./components/WikipediaWorkspace";
 import WorkspaceManager from "./components/WorkspaceManager";
@@ -96,6 +97,11 @@ export default function App() {
       />
 
       <CitationGraphPanel
+        apiHealthy={apiState === "healthy"}
+        workspace={activeWorkspace}
+      />
+
+      <RetrievalPreviewPanel
         apiHealthy={apiState === "healthy"}
         workspace={activeWorkspace}
       />

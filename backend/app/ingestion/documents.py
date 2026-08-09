@@ -8,6 +8,7 @@ from uuid import uuid4
 import fitz
 from docx import Document
 from docx.oxml.ns import qn
+from docx.text.paragraph import Paragraph
 
 from app.domain.source import SourceSpan
 
@@ -24,7 +25,7 @@ def _clean_text(value: str) -> str:
     return " ".join(value.split()).strip()
 
 
-def _docx_paragraph_text(paragraph) -> str:
+def _docx_paragraph_text(paragraph: Paragraph) -> str:
     """Read all visible Word text, including text nested inside hyperlinks."""
 
     return _clean_text(

@@ -54,9 +54,11 @@ def test_comparison_api_uses_exact_qualified_support() -> None:
     assert run["source_ids"] == [first_source_id, second_source_id]
 
     comparison = client.get(f"/api/v1/analyses/{run['run_id']}/comparison").json()
-    assert comparison["comparison_version"] == "source-corroboration-v4-source-signals"
+    assert comparison["comparison_version"] == "source-corroboration-v4-relationships"
     assert comparison["summary"]["cross_source_claim_count"] >= 1
     assert comparison["summary"]["contradiction_candidate_count"] == 0
+    assert comparison["summary"]["exact_content_match_pair_count"] == 0
+    assert comparison["summary"]["exact_evidence_overlap_pair_count"] == 1
     assert comparison["summary"]["possible_derivation_pair_count"] == 1
 
     microsoft_github = next(
@@ -71,17 +73,23 @@ def test_comparison_api_uses_exact_qualified_support() -> None:
     assert microsoft_github["temporal_years"] == [2018]
     assert microsoft_github["support_level"] == "cross_source"
     assert set(microsoft_github["source_ids"]) == {first_source_id, second_source_id}
-    assert microsoft_github["distinct_content_count"] == 2
+    assert microsoft_github["distinct_content_fingerprint_count"] == 2
     assert microsoft_github["distinct_evidence_text_count"] == 1
-    assert microsoft_github["content_duplicate_signal"] is False
-    assert microsoft_github["repeated_evidence_text_signal"] is True
 
-    pair = comparison["overlaps"][0]
-    assert pair["same_content_hash"] is False
-    assert pair["exact_shared_evidence_text_count"] == 1
-    assert pair["exact_shared_evidence_texts"] == ["Microsoft acquired GitHub in 2018."]
-    assert pair["possible_derivation_signal"] is True
-    assert "does not prove independence" in comparison["interpretation_note"]
+    signal = comparison["source_relationships"][0]
+    assert {signal["left_source_id"], signal["right_source_id"]} == {
+        first_source_id,
+        second_source_id,
+    }
+    assert signal["exact_content_fingerprint_match"] is False
+    assert signal["exact_evidence_text_overlap_count"] == 1
+    assert signal["possible_derivation_signal"] is True
+    assert (
+        "identical normalized supporting sentence on a shared resolved assertion"
+        in signal["review_reasons"]
+    )
+    assert "does not prove independent reporting" in comparison["interpretation_note"]
+    assert "absence does not prove independence" in comparison["interpretation_note"]
 
 
 def test_comparison_api_detects_same_year_asserted_negation() -> None:
@@ -115,7 +123,7 @@ def test_comparison_api_rejects_disjoint_year_and_modal_false_conflicts() -> Non
 
     assert comparison["summary"]["contradiction_candidate_count"] == 0
     assert comparison["contradictions"] == []
-    assert "disjoint years" in comparison["interpretation_note"]
+    assert "Disjoint years" in comparison["interpretation_note"]
     assert "modal language" in comparison["interpretation_note"]
 
 

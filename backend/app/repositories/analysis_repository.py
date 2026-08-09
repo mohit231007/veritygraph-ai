@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from functools import lru_cache
 from pathlib import Path
@@ -10,6 +11,7 @@ from app.core.config import get_settings
 from app.domain.analysis import (
     AnalysisRun,
     AnalysisStatus,
+    AssertionModality,
     AssertionPolarity,
     Entity,
     EntityMention,
@@ -121,6 +123,10 @@ class SqliteAnalysisRepository:
                     object_entity_id TEXT NOT NULL,
                     polarity TEXT NOT NULL DEFAULT 'unknown',
                     polarity_method TEXT NOT NULL DEFAULT 'historical_unknown',
+                    modality TEXT NOT NULL DEFAULT 'unknown',
+                    modality_method TEXT NOT NULL DEFAULT 'historical_unknown',
+                    temporal_years_json TEXT NOT NULL DEFAULT '[]',
+                    temporal_method TEXT NOT NULL DEFAULT 'historical_unknown',
                     extraction_score REAL NOT NULL,
                     extraction_method TEXT NOT NULL,
                     FOREIGN KEY(run_id) REFERENCES analysis_runs(run_id) ON DELETE CASCADE,
@@ -164,20 +170,19 @@ class SqliteAnalysisRepository:
                 row["name"]
                 for row in connection.execute("PRAGMA table_info(analysis_relations)").fetchall()
             }
-            if "polarity" not in relation_columns:
-                connection.execute(
-                    """
-                    ALTER TABLE analysis_relations
-                    ADD COLUMN polarity TEXT NOT NULL DEFAULT 'unknown'
-                    """
-                )
-            if "polarity_method" not in relation_columns:
-                connection.execute(
-                    """
-                    ALTER TABLE analysis_relations
-                    ADD COLUMN polarity_method TEXT NOT NULL DEFAULT 'historical_unknown'
-                    """
-                )
+            migrations = {
+                "polarity": "TEXT NOT NULL DEFAULT 'unknown'",
+                "polarity_method": "TEXT NOT NULL DEFAULT 'historical_unknown'",
+                "modality": "TEXT NOT NULL DEFAULT 'unknown'",
+                "modality_method": "TEXT NOT NULL DEFAULT 'historical_unknown'",
+                "temporal_years_json": "TEXT NOT NULL DEFAULT '[]'",
+                "temporal_method": "TEXT NOT NULL DEFAULT 'historical_unknown'",
+            }
+            for column_name, definition in migrations.items():
+                if column_name not in relation_columns:
+                    connection.execute(
+                        f"ALTER TABLE analysis_relations ADD COLUMN {column_name} {definition}"
+                    )
 
     def save(self, analysis: WorkspaceAnalysis) -> WorkspaceAnalysis:
         run = analysis.run
@@ -278,9 +283,10 @@ class SqliteAnalysisRepository:
                     """
                     INSERT INTO analysis_relations (
                         relation_id, run_id, subject_entity_id, predicate,
-                        object_entity_id, polarity, polarity_method,
+                        object_entity_id, polarity, polarity_method, modality,
+                        modality_method, temporal_years_json, temporal_method,
                         extraction_score, extraction_method
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         relation.relation_id,
@@ -290,6 +296,10 @@ class SqliteAnalysisRepository:
                         relation.object_entity_id,
                         relation.polarity.value,
                         relation.polarity_method,
+                        relation.modality.value,
+                        relation.modality_method,
+                        json.dumps(relation.temporal_years),
+                        relation.temporal_method,
                         relation.extraction_score,
                         relation.extraction_method,
                     ),
@@ -455,6 +465,10 @@ class SqliteAnalysisRepository:
             object_entity_id=row["object_entity_id"],
             polarity=AssertionPolarity(row["polarity"]),
             polarity_method=row["polarity_method"],
+            modality=AssertionModality(row["modality"]),
+            modality_method=row["modality_method"],
+            temporal_years=[int(year) for year in json.loads(row["temporal_years_json"])],
+            temporal_method=row["temporal_method"],
             extraction_score=row["extraction_score"],
             extraction_method=row["extraction_method"],
             evidence=[

@@ -20,9 +20,11 @@ def _backup(source: Path, destination: Path) -> None:
         raise SystemExit(f"Source database does not exist: {source}")
     destination.parent.mkdir(parents=True, exist_ok=True)
     _remove_destination_files(destination)
-    with sqlite3.connect(source) as source_connection:
-        with sqlite3.connect(destination) as destination_connection:
-            source_connection.backup(destination_connection)
+    with (
+        sqlite3.connect(source) as source_connection,
+        sqlite3.connect(destination) as destination_connection,
+    ):
+        source_connection.backup(destination_connection)
     print(f"SQLite backup written to {destination}")
 
 
@@ -31,9 +33,11 @@ def _restore(source: Path, destination: Path) -> None:
         raise SystemExit(f"Backup database does not exist: {source}")
     destination.parent.mkdir(parents=True, exist_ok=True)
     _remove_destination_files(destination)
-    with sqlite3.connect(source) as source_connection:
-        with sqlite3.connect(destination) as destination_connection:
-            source_connection.backup(destination_connection)
+    with (
+        sqlite3.connect(source) as source_connection,
+        sqlite3.connect(destination) as destination_connection,
+    ):
+        source_connection.backup(destination_connection)
     print(f"SQLite database restored to {destination}")
 
 

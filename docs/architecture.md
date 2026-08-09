@@ -61,7 +61,10 @@ An explicit source reference is valid only when the observable target and proven
 SourceDocument -> SourceReference -> target URL
                        |
                        +-> SourceSpan when deterministic span mapping exists
+                       +-> page / paragraph locator when format metadata exposes it
 ```
+
+A page or paragraph locator identifies where a link object was observed. It does not imply that a hidden target URL was present inside canonical NLP text.
 
 A workspace reference projection may resolve the target URL to one or more currently ingested `SourceDocument` records, but URL matching never rewrites the original reference.
 
@@ -81,7 +84,7 @@ The graph, comparison, and reference-lineage layers are deterministic projection
 
 ## Domain boundaries
 
-- `ingestion`: obtains permitted content and preserves source structure plus observable explicit references.
+- `ingestion`: obtains permitted content and preserves source structure plus observable explicit references and supported format-level link metadata.
 - `domain`: canonical source, source reference, reference lineage, analysis, entity, qualified relation, evidence, graph, comparison, feedback, and run models.
 - `nlp`: NER, relation extraction, conservative assertion qualifiers, deterministic entity resolution, and future calibrated adapters.
 - `graph`: deterministic analysis-run projection, established structural algorithms, paths, and future storage adapters.
@@ -171,7 +174,16 @@ Source relationship signals currently do not change graph topology, contradictio
 
 `SourceReference` stores only explicit HTTP(S) targets observed during canonical source ingestion.
 
-Document ingestion currently retains URLs visible in evidence spans. Public HTML may additionally retain an anchor target only when the anchor's enclosing paragraph/list/table-row maps to text that survived as a canonical `SourceSpan`. This prevents unrelated navigation/footer anchors from becoming provenance edges merely because they appeared in the raw page.
+The currently supported reference inputs are:
+
+- URLs visibly present in retained document/web/Wikipedia evidence spans;
+- public HTML anchors whose enclosing paragraph/list/table-row maps to retained main-content evidence;
+- external DOCX hyperlink relationships in top-level document paragraphs;
+- PDF URI link annotations.
+
+DOCX hyperlink display text is kept in canonical visible paragraph text, while the relationship target URL remains separate reference metadata unless the URL was visibly printed. PDF annotation targets likewise remain reference metadata; they are never injected into page NLP text merely because the page contains a clickable annotation.
+
+`SourceReference` may retain `span_id`, `page_number`, and `paragraph_number`. A span is used only when deterministic mapping exists. A PDF link can retain a page locator even when the page has no matching readable span.
 
 Reference URL identity is exact and conservative: scheme/hostname normalization, IDNA hostname handling, default-port removal, path/query retention, and fragment removal. No redirect fetching, canonical-tag interpretation, or semantic URL equivalence occurs during the workspace projection.
 
@@ -185,7 +197,7 @@ workspace_ambiguous
 
 If several workspace sources share a matching normalized URL, every candidate is retained and the edge is ambiguous. Import order is never used to choose a target.
 
-An explicit link does not prove quotation, support, endorsement, dependence, copying, or truth. Absence of an extracted reference also does not prove that a source contains no citation; hidden DOCX hyperlinks, PDF annotations, Wikipedia footnotes, DOI-only citations, and other bibliographic forms remain future extraction work.
+An explicit link does not prove quotation, support, endorsement, dependence, copying, or truth. Absence of an extracted reference also does not prove that a source contains no citation. DOCX table/header/footer/footnote hyperlinks, Wikipedia footnotes, DOI-only citations, and other bibliographic forms remain future extraction work.
 
 Reference lineage currently does not alter entity/relation extraction, graph structure, corroboration, contradiction candidates, source-relationship signals, or rule scores.
 
@@ -193,7 +205,7 @@ Reference lineage currently does not alter entity/relation extraction, graph str
 
 SQLite stores canonical sources, source spans, explicit source references, workspaces, immutable analysis runs, resolved entities, qualified relations, and evidence. Each run stores its model, extractor, and resolver versions.
 
-Existing databases are migrated in place. Historical sources simply have zero persisted `SourceReference` rows rather than reconstructed citations. Historical polarity/modality are `unknown`; historical temporal method is `historical_unknown`; explicit year lists remain empty rather than receiving reconstructed dates.
+Existing databases are migrated in place. Historical sources simply have zero persisted `SourceReference` rows rather than reconstructed citations. Existing reference rows receive nullable page/paragraph locator columns without guessed backfill. Historical polarity/modality are `unknown`; historical temporal method is `historical_unknown`; explicit year lists remain empty rather than receiving reconstructed dates.
 
 NetworkX graphs, source comparisons, and workspace reference lineage are regenerated from persisted canonical records rather than stored as separate mutable truth representations.
 

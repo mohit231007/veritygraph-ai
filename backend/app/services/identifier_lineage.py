@@ -12,16 +12,17 @@ from app.domain.source import IdentifierObservationRole, SourceDocument
 from app.domain.workspace import WorkspaceDetail
 from app.repositories.source_repository import SourceRepository
 
-LINEAGE_VERSION = "bibliographic-identity-lineage-v1"
+LINEAGE_VERSION = "bibliographic-identity-lineage-v2-source-attestation"
 INTERPRETATION_NOTE = (
-    "Bibliographic identity lineage contains only explicit DOI, arXiv, and validated ISBN "
-    "observations retained during ingestion. An exact normalized identifier match does not prove "
-    "citation, endorsement, authorship, factual support, dependence, copying, or truth. A "
-    "reference-linked observation means the identifier was observed inside retained reference "
-    "text or a supported reference URL, while an ordinary mention is not promoted to a citation. "
-    "ISBN-10 observations are normalized to their valid ISBN-13 equivalent. arXiv base identifiers "
-    "are matched across optional version suffixes, with the observed version retained separately. "
-    "No registry or network lookup occurs here."
+    "Bibliographic lineage contains explicit DOI, arXiv, and validated ISBN observations. "
+    "A shared identifier observation only means multiple sources retained the same normalized "
+    "identifier; it does not prove those sources are the identified work. Source identity is "
+    "narrower and is attested only when the source acquisition URL itself is a supported DOI "
+    "resolver or arXiv work URL. Source identity does not prove citation, endorsement, authorship, "
+    "factual support, dependence, copying, or truth. Reference-linked observations remain distinct "
+    "from ordinary mentions. ISBN-10 observations normalize to the valid ISBN-13 equivalent, and "
+    "arXiv base identifiers match across optional version suffixes while retaining the observed "
+    "version separately. No registry or network lookup occurs during this projection."
 )
 
 
@@ -29,16 +30,25 @@ def _label(document: SourceDocument) -> str:
     return document.filename or document.title
 
 
+def _resolution(candidate_ids: list[str]) -> IdentifierMatchResolution:
+    if not candidate_ids:
+        return IdentifierMatchResolution.NO_WORKSPACE_MATCH
+    if len(candidate_ids) == 1:
+        return IdentifierMatchResolution.WORKSPACE_UNIQUE
+    return IdentifierMatchResolution.WORKSPACE_AMBIGUOUS
+
+
 def build_workspace_identifier_lineage(
     workspace: WorkspaceDetail,
     *,
     source_repository: SourceRepository,
 ) -> WorkspaceIdentifierLineage:
-    """Project exact bibliographic identity matches across current workspace sources."""
+    """Project shared observations and explicit source-identity attestations separately."""
 
     documents = {document.source_id: document for document in workspace.sources}
     bundles = {}
-    sources_by_identity: dict[tuple[str, str], set[str]] = defaultdict(set)
+    sources_by_observation: dict[tuple[str, str], set[str]] = defaultdict(set)
+    identity_sources_by_identifier: dict[tuple[str, str], set[str]] = defaultdict(set)
 
     for document in workspace.sources:
         bundle = source_repository.get(document.source_id)
@@ -46,9 +56,10 @@ def build_workspace_identifier_lineage(
             continue
         bundles[document.source_id] = bundle
         for identifier in bundle.identifiers:
-            sources_by_identity[(identifier.kind.value, identifier.normalized_value)].add(
-                document.source_id
-            )
+            identity_key = (identifier.kind.value, identifier.normalized_value)
+            sources_by_observation[identity_key].add(document.source_id)
+            if identifier.role == IdentifierObservationRole.SOURCE_IDENTITY:
+                identity_sources_by_identifier[identity_key].add(document.source_id)
 
     observations: list[IdentifierLineageObservation] = []
     for document in workspace.sources:
@@ -56,19 +67,17 @@ def build_workspace_identifier_lineage(
         if bundle is None:
             continue
         for identifier in bundle.identifiers:
-            candidate_ids = sorted(
+            identity_key = (identifier.kind.value, identifier.normalized_value)
+            shared_candidate_ids = sorted(
                 source_id
-                for source_id in sources_by_identity[
-                    (identifier.kind.value, identifier.normalized_value)
-                ]
+                for source_id in sources_by_observation[identity_key]
                 if source_id != document.source_id
             )
-            if not candidate_ids:
-                resolution = IdentifierMatchResolution.NO_WORKSPACE_MATCH
-            elif len(candidate_ids) == 1:
-                resolution = IdentifierMatchResolution.WORKSPACE_UNIQUE
-            else:
-                resolution = IdentifierMatchResolution.WORKSPACE_AMBIGUOUS
+            identity_target_ids = sorted(
+                source_id
+                for source_id in identity_sources_by_identifier[identity_key]
+                if source_id != document.source_id
+            )
 
             observations.append(
                 IdentifierLineageObservation(
@@ -84,9 +93,16 @@ def build_workspace_identifier_lineage(
                     reference_id=identifier.reference_id,
                     page_number=identifier.page_number,
                     paragraph_number=identifier.paragraph_number,
-                    resolution=resolution,
-                    matching_source_ids=candidate_ids,
-                    matching_labels=[_label(documents[source_id]) for source_id in candidate_ids],
+                    resolution=_resolution(shared_candidate_ids),
+                    matching_source_ids=shared_candidate_ids,
+                    matching_labels=[
+                        _label(documents[source_id]) for source_id in shared_candidate_ids
+                    ],
+                    identity_target_resolution=_resolution(identity_target_ids),
+                    identity_target_source_ids=identity_target_ids,
+                    identity_target_labels=[
+                        _label(documents[source_id]) for source_id in identity_target_ids
+                    ],
                     context_text=identifier.context_text,
                     extraction_method=identifier.extraction_method,
                 )
@@ -116,6 +132,17 @@ def build_workspace_identifier_lineage(
     reference_count = sum(
         item.role == IdentifierObservationRole.REFERENCE for item in observations
     )
+    source_identity_count = sum(
+        item.role == IdentifierObservationRole.SOURCE_IDENTITY for item in observations
+    )
+    resolved_identity_count = sum(
+        item.identity_target_resolution == IdentifierMatchResolution.WORKSPACE_UNIQUE
+        for item in observations
+    )
+    ambiguous_identity_count = sum(
+        item.identity_target_resolution == IdentifierMatchResolution.WORKSPACE_AMBIGUOUS
+        for item in observations
+    )
 
     return WorkspaceIdentifierLineage(
         workspace_id=workspace.workspace_id,
@@ -127,6 +154,9 @@ def build_workspace_identifier_lineage(
             matched_observation_count=matched_count,
             ambiguous_observation_count=ambiguous_count,
             reference_linked_observation_count=reference_count,
+            source_identity_observation_count=source_identity_count,
+            resolved_identity_target_observation_count=resolved_identity_count,
+            ambiguous_identity_target_observation_count=ambiguous_identity_count,
         ),
         identifiers=observations,
         interpretation_note=INTERPRETATION_NOTE,

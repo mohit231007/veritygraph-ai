@@ -8,48 +8,62 @@ VerityGraph turns heterogeneous unstructured sources into a single evidence-awar
 
 ```text
 Document upload ─┐
-Wikipedia ────────┼─> SourceDocument / SourceSpan
+Wikipedia ────────┼─> SourceDocument / SourceSpan / SourceReference
 Public URL ───────┘             |
-                               v
-                      Persistent workspace
-                               |
-                               v
-                      Immutable AnalysisRun
-                               |
-                               v
-                     Local NLP extraction
-                               |
-      Entity + Relation + Evidence + Assertion Qualifiers
-                               |
-                               v
-              Deterministic entity resolution
-                  /                         \
-        canonical entities          remapped assertions
-                  \                         /
-                   +------ Evidence ------+
-                               |
-                  +------------+------------+
-                  |                         |
-                  v                         v
-         EvidenceGraph projection    Source comparison
-          established analytics      support + scoped conflict
-                  |                  + relationship signals
-                  +------------+------------+
-                               |
-                               v
-                    Evidence review surfaces
-                               |
-                               v
-                      future grounded RAG
+                  +-------------+-------------+
+                  |                           |
+                  v                           v
+         Persistent workspace       Reference-lineage projection
+                  |                  explicit source -> URL edges
+                  |                           |
+                  v                           |
+         Immutable AnalysisRun                |
+                  |                           |
+                  v                           |
+        Local NLP extraction                  |
+                  |                           |
+Entity + Relation + Evidence + Assertion Qualifiers
+                  |                           |
+                  v                           |
+     Deterministic entity resolution          |
+         /                       \             |
+canonical entities         remapped assertions|
+         \                       /             |
+          +------ Evidence -----+              |
+                  |                            |
+         +--------+--------+                   |
+         |                 |                   |
+         v                 v                   |
+EvidenceGraph       Source comparison          |
+ projection         support + scoped conflict  |
+ analytics          + relationship signals     |
+         |                 |                   |
+         +-----------------+-------------------+
+                           |
+                           v
+                 Evidence review surfaces
+                           |
+                           v
+                   future grounded RAG
 ```
 
-## Core invariant
+## Core invariants
 
 A source-derived graph assertion is valid only when its lineage is complete:
 
 ```text
 GraphEdge -> Relation -> RelationEvidence -> SourceSpan -> SourceDocument
 ```
+
+An explicit source reference is valid only when the observable target and provenance are retained:
+
+```text
+SourceDocument -> SourceReference -> target URL
+                       |
+                       +-> SourceSpan when deterministic span mapping exists
+```
+
+A workspace reference projection may resolve the target URL to one or more currently ingested `SourceDocument` records, but URL matching never rewrites the original reference.
 
 A new relation also carries conservative qualifiers:
 
@@ -63,15 +77,16 @@ New runs detect direct root negation, direct modal/future auxiliaries, and expli
 
 Entity resolution may change which canonical entity ID a mention or relation points to, but it never changes original mention text, evidence sentence, source span, source document, polarity, modality, or time scope.
 
-The graph and comparison layers are deterministic projections of one immutable analysis run rather than second mutable truth stores.
+The graph, comparison, and reference-lineage layers are deterministic projections rather than second mutable truth stores.
 
 ## Domain boundaries
 
-- `ingestion`: obtains permitted content and preserves source structure.
-- `domain`: canonical source, analysis, entity, qualified relation, evidence, graph, comparison, feedback, and run models.
+- `ingestion`: obtains permitted content and preserves source structure plus observable explicit references.
+- `domain`: canonical source, source reference, reference lineage, analysis, entity, qualified relation, evidence, graph, comparison, feedback, and run models.
 - `nlp`: NER, relation extraction, conservative assertion qualifiers, deterministic entity resolution, and future calibrated adapters.
 - `graph`: deterministic analysis-run projection, established structural algorithms, paths, and future storage adapters.
 - `comparison`: deterministic corroboration, source overlap, source-relationship review signals, and strict evidence-backed scoped contradiction candidates.
+- `reference-lineage`: deterministic explicit URL-reference projection over current workspace sources; no citation-intent inference.
 - `insights`: source-derived facts and computed graph observations.
 - `rag`: optional local synthesis over explicitly selected evidence.
 - `api`: HTTP contracts only; orchestration belongs in services.
@@ -152,15 +167,37 @@ These signals are intentionally non-causal. They do not prove copying, common up
 
 Source relationship signals currently do not change graph topology, contradiction promotion, or extraction scores. They are review context over the same immutable run.
 
+## Explicit reference-lineage boundary
+
+`SourceReference` stores only explicit HTTP(S) targets observed during canonical source ingestion.
+
+Document ingestion currently retains URLs visible in evidence spans. Public HTML may additionally retain an anchor target only when the anchor's enclosing paragraph/list/table-row maps to text that survived as a canonical `SourceSpan`. This prevents unrelated navigation/footer anchors from becoming provenance edges merely because they appeared in the raw page.
+
+Reference URL identity is exact and conservative: scheme/hostname normalization, IDNA hostname handling, default-port removal, path/query retention, and fragment removal. No redirect fetching, canonical-tag interpretation, or semantic URL equivalence occurs during the workspace projection.
+
+Workspace resolution has three states:
+
+```text
+external
+workspace_unique
+workspace_ambiguous
+```
+
+If several workspace sources share a matching normalized URL, every candidate is retained and the edge is ambiguous. Import order is never used to choose a target.
+
+An explicit link does not prove quotation, support, endorsement, dependence, copying, or truth. Absence of an extracted reference also does not prove that a source contains no citation; hidden DOCX hyperlinks, PDF annotations, Wikipedia footnotes, DOI-only citations, and other bibliographic forms remain future extraction work.
+
+Reference lineage currently does not alter entity/relation extraction, graph structure, corroboration, contradiction candidates, source-relationship signals, or rule scores.
+
 ## Storage strategy
 
-SQLite stores canonical sources, workspaces, immutable analysis runs, resolved entities, qualified relations, and evidence. Each run stores its model, extractor, and resolver versions.
+SQLite stores canonical sources, source spans, explicit source references, workspaces, immutable analysis runs, resolved entities, qualified relations, and evidence. Each run stores its model, extractor, and resolver versions.
 
-Existing databases are migrated in place. Historical polarity/modality are `unknown`; historical temporal method is `historical_unknown`; explicit year lists remain empty rather than receiving reconstructed dates.
+Existing databases are migrated in place. Historical sources simply have zero persisted `SourceReference` rows rather than reconstructed citations. Historical polarity/modality are `unknown`; historical temporal method is `historical_unknown`; explicit year lists remain empty rather than receiving reconstructed dates.
 
-NetworkX graphs and source comparisons are regenerated from the immutable analysis run rather than persisted as separate mutable truth representations.
+NetworkX graphs, source comparisons, and workspace reference lineage are regenerated from persisted canonical records rather than stored as separate mutable truth representations.
 
-Source relationship signals use already persisted source metadata (`content_hash`, URL) and retained relation evidence. No new mutable truth table is introduced for the v4 comparison projection.
+Source relationship signals use already persisted source metadata (`content_hash`, URL) and retained relation evidence. Reference lineage uses persisted `SourceReference` rows plus canonical/requested/final URL metadata of current workspace sources.
 
 ## Graph analytics boundary
 

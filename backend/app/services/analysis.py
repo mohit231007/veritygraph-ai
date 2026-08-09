@@ -64,6 +64,7 @@ def run_workspace_analysis(
     started_at = datetime.now(UTC)
     started_timer = perf_counter()
     span_count = sum(len(bundle.spans) for bundle in bundles)
+    source_ids = [bundle.document.source_id for bundle in bundles]
     run = AnalysisRun(
         run_id=run_id,
         workspace_id=workspace_id,
@@ -75,6 +76,7 @@ def run_workspace_analysis(
         resolver_version=resolver.VERSION,
         started_at=started_at,
         source_count=len(bundles),
+        source_ids=source_ids,
         span_count=span_count,
     )
     analysis_repository.save(WorkspaceAnalysis(run=run, entities=[], relations=[]))

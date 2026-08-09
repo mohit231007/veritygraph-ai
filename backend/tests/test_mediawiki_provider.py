@@ -207,10 +207,10 @@ def test_selected_reference_list_section_preserves_direct_external_links() -> No
 
     fetched = asyncio.run(_provider(handler).fetch_sections(PAGE_ID, ["1"]))
 
-    assert fetched.sections[0].paragraphs == ["Direct entry. Primary report ."]
+    assert fetched.sections[0].paragraphs == ["Direct entry. Primary report."]
     assert len(fetched.sections[0].references) == 1
     reference = fetched.sections[0].references[0]
     assert reference.target_url == "https://example.org/direct"
-    assert reference.reference_text == "Direct entry. Primary report ."
+    assert reference.reference_text == "Direct entry. Primary report."
     assert reference.citation_marker == "cite_note-direct-1"
     assert reference.extraction_method == "mediawiki_reference_list_v1"

@@ -153,7 +153,8 @@ class SqliteSourceRepository:
                     extraction_method TEXT NOT NULL,
                     FOREIGN KEY(source_id) REFERENCES sources(source_id) ON DELETE CASCADE,
                     FOREIGN KEY(span_id) REFERENCES source_spans(span_id) ON DELETE SET NULL,
-                    FOREIGN KEY(reference_id) REFERENCES source_references(reference_id) ON DELETE SET NULL
+                    FOREIGN KEY(reference_id) REFERENCES source_references(reference_id)
+                        ON DELETE SET NULL
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_source_identifiers_source

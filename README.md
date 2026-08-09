@@ -297,7 +297,7 @@ After the local stack is running and `cloudflared` is installed:
 
 ```bash
 # macOS/Linux
-./scripts/share-quick.sh
+sh scripts/share-quick.sh
 ```
 
 This prints a temporary public HTTPS URL. It is a demo/testing path, not durable production hosting.
@@ -309,7 +309,7 @@ Use a Linux VPS/server and a domain:
 ```bash
 cp .env.production.example .env.production
 # set VERITYGRAPH_DOMAIN in .env.production
-./scripts/deploy-prod.sh .env.production
+sh scripts/deploy-prod.sh .env.production
 ```
 
 Production topology:
@@ -336,19 +336,19 @@ Full instructions: [`docs/deployment.md`](docs/deployment.md).
 
 ## Backup and restore
 
-Production mounts `./backups` into the backend and ships `scripts/sqlite_backup.py`.
+Production ships `scripts/sqlite_backup.py` and an explicit `ops` profile. The normal API runtime remains non-root; only the one-off backup/restore service receives the host `./backups` mount.
 
 Example live backup:
 
 ```bash
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-docker compose --env-file .env.production -f docker-compose.prod.yml exec -T backend \
-  python scripts/sqlite_backup.py backup \
+docker compose --env-file .env.production -f docker-compose.prod.yml --profile ops run --rm backup \
+  backup \
   --source /data/veritygraph.db \
   --output /backups/veritygraph-$STAMP.db
 ```
 
-The utility uses SQLite's backup API. Restore instructions and the required stop/start sequence are in the deployment runbook.
+The utility uses SQLite's backup API. Restore also removes stale destination WAL/SHM sidecars before rebuilding the database. Full restore instructions and the required writer stop/start sequence are in the deployment runbook.
 
 ## API
 

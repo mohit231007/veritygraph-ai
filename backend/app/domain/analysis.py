@@ -18,6 +18,12 @@ class AssertionPolarity(StrEnum):
     NEGATED = "negated"
 
 
+class AssertionModality(StrEnum):
+    UNKNOWN = "unknown"
+    ASSERTED = "asserted"
+    MODAL = "modal"
+
+
 class AnalysisRun(BaseModel):
     run_id: str
     workspace_id: str
@@ -76,6 +82,10 @@ class Relation(BaseModel):
     object_entity_id: str
     polarity: AssertionPolarity = AssertionPolarity.AFFIRMED
     polarity_method: str = "default_affirmed_v1"
+    modality: AssertionModality = AssertionModality.ASSERTED
+    modality_method: str = "default_asserted_v1"
+    temporal_years: list[int] = Field(default_factory=list)
+    temporal_method: str = "sentence_year_regex_v1"
     extraction_score: float = Field(ge=0.0, le=1.0)
     extraction_method: str
     evidence: list[RelationEvidence] = Field(default_factory=list)

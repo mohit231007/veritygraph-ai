@@ -2,7 +2,7 @@
 
 ## Design goal
 
-VerityGraph turns heterogeneous unstructured sources into a single evidence-aware intelligence model. Ingestion is intentionally separated from analysis so PDF, DOCX, Wikipedia, and web inputs do not create parallel NLP implementations.
+VerityGraph turns heterogeneous unstructured sources into a single evidence-aware intelligence model. Ingestion is separated from analysis so PDF, DOCX, Wikipedia, and web inputs do not create parallel NLP implementations.
 
 ## Current flow
 
@@ -19,7 +19,7 @@ Public URL ───────┘             |
                                v
                      Local NLP extraction
                                |
-              Entity + Relation + Evidence + Polarity
+      Entity + Relation + Evidence + Assertion Qualifiers
                                |
                                v
               Deterministic entity resolution
@@ -32,7 +32,7 @@ Public URL ───────┘             |
                   |                         |
                   v                         v
          EvidenceGraph projection    Source comparison
-          non-negated analytics      support + conflict
+          established analytics      support + scoped conflict
                   |                         |
                   +------------+------------+
                                |
@@ -51,62 +51,109 @@ A source-derived graph assertion is valid only when its lineage is complete:
 GraphEdge -> Relation -> RelationEvidence -> SourceSpan -> SourceDocument
 ```
 
-A relation also carries assertion polarity. For new runs the deterministic baseline currently retains explicit root negation as `negated`, otherwise `affirmed`. Historical relations created before polarity existed are migrated as `unknown`, never rewritten as affirmed after the fact.
+A new relation also carries conservative qualifiers:
 
-Entity resolution may change which canonical entity ID a mention or relation points to, but it never changes the original mention text, evidence sentence, source span, or source document. The immutable analysis run records the resolver version used to make those identity decisions.
+```text
+polarity        = unknown | affirmed | negated
+modality        = unknown | asserted | modal
+temporal_years  = sorted explicit four-digit years in the sentence
+```
 
-The graph is a projection of the immutable analysis run rather than a second source of truth. Changing a visual layout cannot rewrite evidence, entities, relations, polarity, analytics, or source lineage.
+New runs detect direct root negation, direct modal/future auxiliaries, and explicit sentence years. Historical relations created before a qualifier existed are never retroactively guessed; their migrated qualifier remains `unknown` or `historical_unknown`.
 
-No generated response is allowed to rewrite source evidence. Response improvement creates a new response version; source truth and analysis-run provenance remain immutable.
+Entity resolution may change which canonical entity ID a mention or relation points to, but it never changes original mention text, evidence sentence, source span, source document, polarity, modality, or time scope.
+
+The graph and comparison layers are deterministic projections of one immutable analysis run rather than second mutable truth stores.
 
 ## Domain boundaries
 
 - `ingestion`: obtains permitted content and preserves source structure.
-- `domain`: canonical source, analysis, entity, relation, polarity, evidence, graph, comparison, feedback, and run models.
-- `nlp`: NER, relation extraction, explicit baseline polarity, deterministic entity resolution, and future calibrated confidence.
-- `graph`: deterministic analysis-run projection, non-negated structural algorithms, paths, and future storage adapters.
-- `comparison`: deterministic corroboration, source overlap, and strict evidence-backed contradiction candidates.
+- `domain`: canonical source, analysis, entity, qualified relation, evidence, graph, comparison, feedback, and run models.
+- `nlp`: NER, relation extraction, conservative assertion qualifiers, deterministic entity resolution, and future calibrated adapters.
+- `graph`: deterministic analysis-run projection, established structural algorithms, paths, and future storage adapters.
+- `comparison`: deterministic corroboration, source overlap, and strict evidence-backed scoped contradiction candidates.
 - `insights`: source-derived facts and computed graph observations.
 - `rag`: optional local synthesis over explicitly selected evidence.
 - `api`: HTTP contracts only; orchestration belongs in services.
 
-## Entity identity boundary
+## Entity and assertion identity boundary
 
-The first resolver operates after local NLP extraction and before the completed run is persisted. It currently consolidates only explainable `ORG` aliases: legal-suffix variants and unique acronym/full-name matches. Ambiguous candidates remain separate.
+The resolver operates after local NLP extraction and before the completed run is persisted. It currently consolidates only explainable `ORG` aliases: legal-suffix variants and unique acronym/full-name matches. Ambiguous candidates remain separate.
 
-Because resolution happens before graph and comparison projection, all downstream analytics see the same canonical identities. Original mention strings remain attached to the canonical entity with source/span/offset lineage, so normalization does not erase what the evidence actually said.
+Downstream assertion identity includes:
 
-Relation remapping includes polarity in its aggregation identity. An affirmed and negated assertion with the same canonical subject, predicate, and object therefore remain separate evidence-bearing relations rather than being accidentally combined.
+```text
+canonical subject
+predicate
+canonical object
+polarity
+modality
+explicit year set
+```
 
-## Assertion polarity and contradiction boundary
+This prevents evidence such as `acquired in 2018`, `did not acquire in 2019`, and `may acquire in 2027` from being collapsed into one relation simply because the subject, predicate, and object match.
 
-The deterministic polarity baseline is intentionally narrower than natural-language inference. It records direct dependency-root negation and exposes the method used. It does not claim to solve negation scope, modality, temporal qualification, lexical contradiction, or factual truth.
+## Contradiction boundary
 
-Source comparison may create a `ContradictionCandidate` only when the same resolved subject-predicate-object has both affirmed and negated evidence and at least two distinct sources occur across the two evidence sides.
+The deterministic qualifier baseline is intentionally narrower than natural-language inference. A `ContradictionCandidate` requires:
+
+1. identical resolved subject, predicate, and object;
+2. affirmed and negated evidence;
+3. modality `asserted` on both opposing sides;
+4. compatible time scope;
+5. at least two distinct sources across the opposing evidence.
+
+Time compatibility fails closed:
+
+- both unscoped -> compatible;
+- overlapping explicit years -> compatible;
+- disjoint explicit years -> not compatible;
+- one scoped and one unscoped -> ambiguous, therefore not promoted automatically.
 
 The following never creates a contradiction candidate by itself:
 
 - another source being silent;
-- a historical `unknown` relation;
+- a modal/future assertion;
+- a historical `unknown` qualifier;
+- disjoint or one-sided explicit year scope;
 - low pairwise overlap;
-- different subjects, predicates, or objects;
 - graph distance or centrality.
 
-A contradiction candidate means only that VerityGraph retained incompatible source evidence worth reviewing. It does not decide which source is correct.
+A candidate means only that VerityGraph retained incompatible evidence worth reviewing. It does not decide which source is correct.
 
 ## Storage strategy
 
-SQLite stores canonical sources, workspaces, immutable analysis runs, resolved entities, remapped polarity-aware relations, and evidence. Each analysis run stores its model, extractor, and resolver versions. Existing databases are migrated in place when new lineage fields are introduced; historical relation polarity defaults to `unknown` rather than receiving guessed semantics.
+SQLite stores canonical sources, workspaces, immutable analysis runs, resolved entities, qualified relations, and evidence. Each run stores its model, extractor, and resolver versions.
 
-The current NetworkX evidence graph is regenerated from an analysis run rather than persisted as a separate mutable graph blob. Source comparison is likewise a deterministic projection. This keeps the product local-first while leaving room for Neo4j Community or PostgreSQL adapters if later workloads justify them.
+Existing databases are migrated in place. Historical polarity/modality are `unknown`; historical temporal method is `historical_unknown`; explicit year lists remain empty rather than receiving reconstructed dates.
+
+NetworkX graphs and source comparisons are regenerated from the immutable analysis run rather than persisted as separate mutable truth representations.
 
 ## Graph analytics boundary
 
-NetworkX is the backend analytical engine. It computes structural metrics such as PageRank, centrality, communities, components, density, and connection paths from one specific analysis run.
+NetworkX computes PageRank, centrality, communities, components, density, and connection paths from one specific analysis run.
 
-Explicitly negated relations remain visible as evidence edges but are excluded from the structural analytical projection and connection paths. This prevents `A did not acquire B` from creating the same positive connectivity as `A acquired B`. Historical `unknown` relations remain structurally usable so older runs preserve their previous graph behavior while exposing the uncertainty explicitly.
+Explicit `negated` and `modal` relations remain visible as evidence edges but are excluded from structural analytics and connection paths. Therefore neither:
 
-Cytoscape.js is the browser rendering and interaction layer. It can change layout, selection, and path highlighting, but it is not allowed to become the authoritative source for graph analytics or evidence lineage.
+```text
+A did not acquire B
+```
+
+nor:
+
+```text
+A may acquire B
+```
+
+can create the same established connectivity as:
+
+```text
+A acquired B
+```
+
+Historical `unknown` qualifiers remain structurally usable so older immutable runs preserve prior behavior while exposing uncertainty explicitly.
+
+Cytoscape.js is the browser rendering and interaction layer. Layout and selection cannot rewrite backend analytics or evidence lineage.
 
 ## Response improvement semantics
 
@@ -115,4 +162,4 @@ Two operations remain deliberately distinct:
 1. **Improve response** — same analysis run and evidence set, plus user critique, creates a child `ResponseVersion`.
 2. **Refresh analysis** — re-fetch/re-ingest permitted sources and create a new immutable `AnalysisRun`; answers may then use the refreshed evidence graph.
 
-That distinction prevents a UI action from silently changing both evidence and wording at the same time.
+This prevents a UI action from silently changing both evidence and wording at the same time.

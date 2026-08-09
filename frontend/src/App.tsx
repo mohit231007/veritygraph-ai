@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 
+import AnalysisPanel from "./components/AnalysisPanel";
 import DocumentWorkspace from "./components/DocumentWorkspace";
 import PublicUrlWorkspace from "./components/PublicUrlWorkspace";
 import SourcePreview from "./components/SourcePreview";
 import WikipediaWorkspace from "./components/WikipediaWorkspace";
 import WorkspaceManager from "./components/WorkspaceManager";
-import type { HealthResponse, SourceBundle } from "./types";
+import type { HealthResponse, SourceBundle, WorkspaceDetail } from "./types";
 
 type ApiState = "checking" | "healthy" | "unavailable";
 type SourceMode = "documents" | "wikipedia" | "public-url";
@@ -15,6 +16,7 @@ export default function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [sourceMode, setSourceMode] = useState<SourceMode>("documents");
   const [bundle, setBundle] = useState<SourceBundle | null>(null);
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceDetail | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -69,6 +71,12 @@ export default function App() {
       <WorkspaceManager
         apiHealthy={apiState === "healthy"}
         currentSource={bundle?.document ?? null}
+        onWorkspaceChange={setActiveWorkspace}
+      />
+
+      <AnalysisPanel
+        apiHealthy={apiState === "healthy"}
+        workspace={activeWorkspace}
       />
 
       <section className="source-studio" aria-labelledby="source-studio-heading">
@@ -132,12 +140,12 @@ export default function App() {
         <article>
           <span>04</span>
           <h3>Analyse the workspace</h3>
-          <p>Run one NLP pipeline over every persisted source while retaining evidence lineage.</p>
+          <p>Local NER and relationship extraction now retain exact evidence lineage per run.</p>
         </article>
         <article>
           <span>05</span>
           <h3>Build the evidence graph</h3>
-          <p>NER, relationship extraction and entity resolution will consume these same spans.</p>
+          <p>Project versioned entities and relationships into an interactive, inspectable graph.</p>
         </article>
         <article>
           <span>06</span>

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     web_max_redirects: int = 4
     web_user_agent: str = "VerityGraphAI/0.5 (+https://github.com/mohit231007/veritygraph-ai)"
 
+    nlp_model: str = "en_core_web_sm"
+    nlp_batch_size: int = 64
+
 
 @lru_cache
 def get_settings() -> Settings:

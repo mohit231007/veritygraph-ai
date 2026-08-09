@@ -6,9 +6,14 @@ import type { SourceDocument, WorkspaceDetail, WorkspaceSummary } from "../types
 type Props = {
   apiHealthy: boolean;
   currentSource: SourceDocument | null;
+  onWorkspaceChange: (workspace: WorkspaceDetail | null) => void;
 };
 
-export default function WorkspaceManager({ apiHealthy, currentSource }: Props) {
+export default function WorkspaceManager({
+  apiHealthy,
+  currentSource,
+  onWorkspaceChange,
+}: Props) {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [activeId, setActiveId] = useState<string>("");
   const [detail, setDetail] = useState<WorkspaceDetail | null>(null);
@@ -46,6 +51,10 @@ export default function WorkspaceManager({ apiHealthy, currentSource }: Props) {
     if (!response.ok) throw new Error("Could not load workspace details.");
     setDetail((await response.json()) as WorkspaceDetail);
   }
+
+  useEffect(() => {
+    onWorkspaceChange(detail);
+  }, [detail, onWorkspaceChange]);
 
   useEffect(() => {
     if (!apiHealthy) return;

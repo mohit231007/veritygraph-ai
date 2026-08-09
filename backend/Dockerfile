@@ -11,6 +11,8 @@ COPY backend ./backend
 
 RUN python -m pip install --upgrade pip \
     && python -m pip install . \
+    && python -m spacy download en_core_web_sm \
+    && python -m spacy validate \
     && addgroup --system veritygraph \
     && adduser --system --ingroup veritygraph --home /home/veritygraph veritygraph \
     && mkdir -p /data \

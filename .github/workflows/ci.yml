@@ -19,6 +19,10 @@ jobs:
           cache: pip
       - name: Install backend
         run: pip install -e ".[dev]"
+      - name: Install local NLP model
+        run: |
+          python -m spacy download en_core_web_sm
+          python -m spacy validate
       - name: Ruff
         run: python -m ruff check backend scripts
       - name: Pytest

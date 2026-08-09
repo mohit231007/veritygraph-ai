@@ -70,3 +70,70 @@ export type WikipediaOutline = {
   url: string;
   sections: WikipediaSection[];
 };
+
+export type AnalysisStatus = "running" | "completed" | "failed";
+
+export type AnalysisRun = {
+  run_id: string;
+  workspace_id: string;
+  status: AnalysisStatus;
+  pipeline_version: string;
+  model_name: string;
+  model_version: string;
+  extractor_version: string;
+  started_at: string;
+  completed_at: string | null;
+  duration_ms: number | null;
+  source_count: number;
+  span_count: number;
+  entity_count: number;
+  relation_count: number;
+  error: string | null;
+};
+
+export type EntityMention = {
+  mention_id: string;
+  entity_id: string;
+  source_id: string;
+  span_id: string;
+  text: string;
+  start_char: number;
+  end_char: number;
+};
+
+export type AnalysisEntity = {
+  entity_id: string;
+  run_id: string;
+  canonical_name: string;
+  entity_type: string;
+  normalized_key: string;
+  mention_count: number;
+  mentions: EntityMention[];
+};
+
+export type RelationEvidence = {
+  evidence_id: string;
+  relation_id: string;
+  source_id: string;
+  span_id: string;
+  text: string;
+  sentence_start: number;
+  sentence_end: number;
+};
+
+export type AnalysisRelation = {
+  relation_id: string;
+  run_id: string;
+  subject_entity_id: string;
+  predicate: string;
+  object_entity_id: string;
+  extraction_score: number;
+  extraction_method: string;
+  evidence: RelationEvidence[];
+};
+
+export type WorkspaceAnalysis = {
+  run: AnalysisRun;
+  entities: AnalysisEntity[];
+  relations: AnalysisRelation[];
+};

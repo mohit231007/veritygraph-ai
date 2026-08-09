@@ -121,6 +121,7 @@ class SqliteSourceRepository:
                     normalized_target_url TEXT NOT NULL,
                     anchor_text TEXT,
                     context_text TEXT,
+                    reference_text TEXT,
                     extraction_method TEXT NOT NULL,
                     FOREIGN KEY(source_id) REFERENCES sources(source_id) ON DELETE CASCADE,
                     FOREIGN KEY(span_id) REFERENCES source_spans(span_id) ON DELETE SET NULL
@@ -132,10 +133,10 @@ class SqliteSourceRepository:
                     ON source_references(normalized_target_url);
                 """
             )
-            self._ensure_reference_location_columns(connection)
+            self._ensure_reference_columns(connection)
 
     @staticmethod
-    def _ensure_reference_location_columns(connection: sqlite3.Connection) -> None:
+    def _ensure_reference_columns(connection: sqlite3.Connection) -> None:
         columns = {
             row["name"]
             for row in connection.execute("PRAGMA table_info(source_references)").fetchall()
@@ -146,6 +147,8 @@ class SqliteSourceRepository:
             connection.execute(
                 "ALTER TABLE source_references ADD COLUMN paragraph_number INTEGER"
             )
+        if "reference_text" not in columns:
+            connection.execute("ALTER TABLE source_references ADD COLUMN reference_text TEXT")
 
     def save(self, bundle: SourceBundle) -> SourceBundle:
         document = bundle.document
@@ -216,8 +219,8 @@ class SqliteSourceRepository:
                 INSERT INTO source_references (
                     reference_id, source_id, span_id, page_number, paragraph_number,
                     target_url, normalized_target_url, anchor_text, context_text,
-                    extraction_method
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    reference_text, extraction_method
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -230,6 +233,7 @@ class SqliteSourceRepository:
                         reference.normalized_target_url,
                         reference.anchor_text,
                         reference.context_text,
+                        reference.reference_text,
                         reference.extraction_method,
                     )
                     for reference in bundle.references
@@ -322,6 +326,7 @@ class SqliteSourceRepository:
             normalized_target_url=row["normalized_target_url"],
             anchor_text=row["anchor_text"],
             context_text=row["context_text"],
+            reference_text=row["reference_text"],
             extraction_method=row["extraction_method"],
         )
 

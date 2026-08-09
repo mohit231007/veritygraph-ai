@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("shared DOI mentions stay separate from source identity after reload", async ({ page }) => {
+test("shared DOI mentions stay separate from source identity and citation topology", async ({ page }) => {
   const workspaceName = "E2E Bibliographic Identity";
   const normalizedDoi = "10.1000/verity.test";
 
@@ -23,6 +23,10 @@ test("shared DOI mentions stay separate from source identity after reload", asyn
 
   await expect(page.getByTestId("bibliographic-identity-status")).toContainText(
     "1 observation · 0 shared across sources · 0 resolved source identities · 0 ambiguous targets",
+    { timeout: 10_000 },
+  );
+  await expect(page.getByTestId("citation-graph-status")).toContainText(
+    "1 sources · 0 directed edges · 0 unresolved · 0 ambiguous",
     { timeout: 10_000 },
   );
 
@@ -55,6 +59,13 @@ test("shared DOI mentions stay separate from source identity after reload", asyn
   await expect(cards.nth(0)).toContainText("Source mention");
   await expect(page.getByTestId("identity-target")).toHaveCount(0);
 
+  await expect(page.getByTestId("citation-graph-status")).toContainText(
+    "2 sources · 0 directed edges · 0 unresolved · 0 ambiguous",
+    { timeout: 10_000 },
+  );
+  await expect(page.getByTestId("citation-edge-count")).toContainText("0");
+  await expect(page.getByTestId("citation-edge-card")).toHaveCount(0);
+
   await page.reload();
   await expect(page.getByTestId("api-status")).toHaveText("API healthy");
   await expect(page.getByTestId("workspace-detail")).toContainText(workspaceName);
@@ -65,4 +76,9 @@ test("shared DOI mentions stay separate from source identity after reload", asyn
   );
   await expect(page.getByTestId("bibliographic-identifier-card")).toHaveCount(2);
   await expect(page.getByTestId("identity-target")).toHaveCount(0);
+  await expect(page.getByTestId("citation-graph-status")).toContainText(
+    "2 sources · 0 directed edges · 0 unresolved · 0 ambiguous",
+    { timeout: 10_000 },
+  );
+  await expect(page.getByTestId("citation-edge-card")).toHaveCount(0);
 });

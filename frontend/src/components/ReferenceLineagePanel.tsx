@@ -64,13 +64,14 @@ export default function ReferenceLineagePanel({ apiHealthy, workspace }: Props) 
       return;
     }
 
+    const workspaceId = workspace.workspace_id;
     const controller = new AbortController();
     setMessage("Resolving explicit references against workspace source URLs…");
 
     async function loadLineage() {
       try {
         const response = await fetch(
-          `/api/v1/workspaces/${workspace.workspace_id}/reference-lineage`,
+          `/api/v1/workspaces/${workspaceId}/reference-lineage`,
           { signal: controller.signal },
         );
         if (!response.ok) throw new Error("Could not load reference lineage.");

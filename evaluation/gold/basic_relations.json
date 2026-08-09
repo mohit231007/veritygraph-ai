@@ -1,0 +1,30 @@
+[
+  {
+    "case_id": "active-acquisition",
+    "text": "Microsoft acquired GitHub in 2018.",
+    "relations": [
+      {"subject": "Microsoft", "predicate": "acquire", "object": "GitHub"}
+    ]
+  },
+  {
+    "case_id": "passive-acquisition",
+    "text": "GitHub was acquired by Microsoft in 2018.",
+    "relations": [
+      {"subject": "Microsoft", "predicate": "acquire", "object": "GitHub"}
+    ]
+  },
+  {
+    "case_id": "prepositional-investment",
+    "text": "Microsoft invested in OpenAI.",
+    "relations": [
+      {"subject": "Microsoft", "predicate": "invest in", "object": "OpenAI"}
+    ]
+  },
+  {
+    "case_id": "prepositional-partnership",
+    "text": "Microsoft partnered with OpenAI.",
+    "relations": [
+      {"subject": "Microsoft", "predicate": "partner with", "object": "OpenAI"}
+    ]
+  }
+]

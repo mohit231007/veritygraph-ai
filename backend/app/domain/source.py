@@ -14,6 +14,17 @@ class SourceType(StrEnum):
     PUBLIC_URL = "public_url"
 
 
+class BibliographicIdentifierKind(StrEnum):
+    DOI = "doi"
+    ARXIV = "arxiv"
+    ISBN = "isbn"
+
+
+class IdentifierObservationRole(StrEnum):
+    MENTION = "mention"
+    REFERENCE = "reference"
+
+
 class SourceDocument(BaseModel):
     """Canonical metadata shared by every VerityGraph source."""
 
@@ -80,12 +91,36 @@ class SourceReference(BaseModel):
     extraction_method: str
 
 
+class SourceIdentifier(BaseModel):
+    """One explicit bibliographic identifier observed with source provenance.
+
+    The normalized value is an identity key only. It does not imply that the source
+    authored, endorsed, cited, or supports the identified work. ``role`` separates
+    ordinary source mentions from identifiers observed inside retained references.
+    """
+
+    identifier_id: str
+    source_id: str
+    kind: BibliographicIdentifierKind
+    raw_value: str
+    normalized_value: str
+    role: IdentifierObservationRole
+    span_id: str | None = None
+    reference_id: str | None = None
+    page_number: int | None = Field(default=None, ge=1)
+    paragraph_number: int | None = Field(default=None, ge=1)
+    version: int | None = Field(default=None, ge=1)
+    context_text: str | None = None
+    extraction_method: str
+
+
 class SourceBundle(BaseModel):
     """Canonical ingestion result returned by the API and persisted by repositories."""
 
     document: SourceDocument
     spans: list[SourceSpan]
     references: list[SourceReference] = Field(default_factory=list)
+    identifiers: list[SourceIdentifier] = Field(default_factory=list)
 
     @property
     def extracted_text(self) -> str:

@@ -15,6 +15,7 @@ from app.domain.source import (
 )
 from app.ingestion.documents import PARSERS
 from app.repositories.source_repository import SourceRepository
+from app.services.source_identifiers import extract_source_identifiers
 from app.services.source_references import (
     extract_docx_hyperlink_references,
     extract_pdf_link_annotation_references,
@@ -117,6 +118,11 @@ async def ingest_document_upload(
         content=content,
         spans=spans,
     )
+    identifiers = extract_source_identifiers(
+        source_id=source_id,
+        spans=spans,
+        references=references,
+    )
 
     document = SourceDocument(
         source_id=source_id,
@@ -134,8 +140,14 @@ async def ingest_document_upload(
                 default=0,
             ),
             "reference_count": len(references),
+            "identifier_count": len(identifiers),
         },
     )
     return repository.save(
-        SourceBundle(document=document, spans=spans, references=references)
+        SourceBundle(
+            document=document,
+            spans=spans,
+            references=references,
+            identifiers=identifiers,
+        )
     )

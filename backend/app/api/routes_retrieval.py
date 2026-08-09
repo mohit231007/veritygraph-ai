@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.domain.evidence_pack import EvidencePackRequest, GroundedEvidencePack
 from app.domain.retrieval import RetrievalPreviewRequest, WorkspaceRetrievalPreview
 from app.domain.retrieval_evaluation import (
     RetrievalEvaluationRequest,
@@ -12,6 +13,7 @@ from app.repositories.workspace_repository import (
     WorkspaceRepository,
     get_workspace_repository,
 )
+from app.services.evidence_pack import build_grounded_evidence_pack
 from app.services.retrieval import build_workspace_retrieval_preview
 from app.services.retrieval_evaluation import (
     RetrievalEvaluationError,
@@ -58,6 +60,29 @@ def preview_workspace_retrieval(
         workspace,
         query=request.query,
         limit=request.limit,
+        source_repository=source_repository,
+    )
+
+
+@router.post(
+    "/{workspace_id}/retrieval/evidence-pack",
+    response_model=GroundedEvidencePack,
+    summary="Assemble a deterministic budgeted evidence pack from directly retrieved spans",
+)
+def build_workspace_evidence_pack_route(
+    workspace_id: str,
+    request: EvidencePackRequest,
+    workspace_repository: WorkspaceRepositoryDependency,
+    source_repository: SourceRepositoryDependency,
+) -> GroundedEvidencePack:
+    workspace = _workspace_or_404(workspace_id, workspace_repository)
+    return build_grounded_evidence_pack(
+        workspace,
+        query=request.query,
+        max_excerpts=request.max_excerpts,
+        max_excerpts_per_source=request.max_excerpts_per_source,
+        max_chars_per_excerpt=request.max_chars_per_excerpt,
+        max_total_chars=request.max_total_chars,
         source_repository=source_repository,
     )
 

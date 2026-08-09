@@ -92,6 +92,30 @@ def test_doi_and_arxiv_reference_urls_are_reference_linked() -> None:
     assert arxiv.reference_id == "ref_arxiv"
 
 
+def test_supported_acquisition_urls_attest_source_identity() -> None:
+    identifiers = extract_source_identifiers(
+        source_id="src_attested",
+        spans=[],
+        references=[],
+        source_urls=[
+            "https://doi.org/10.1000/VERITY.TEST",
+            "https://arxiv.org/abs/2208.12242v4",
+            "https://publisher.example/10.2000/not-an-attestation",
+        ],
+    )
+
+    assert len(identifiers) == 2
+    doi = next(item for item in identifiers if item.kind == BibliographicIdentifierKind.DOI)
+    arxiv = next(item for item in identifiers if item.kind == BibliographicIdentifierKind.ARXIV)
+    assert doi.normalized_value == "10.1000/verity.test"
+    assert doi.role == IdentifierObservationRole.SOURCE_IDENTITY
+    assert doi.context_text == "https://doi.org/10.1000/VERITY.TEST"
+    assert arxiv.normalized_value == "2208.12242"
+    assert arxiv.version == 4
+    assert arxiv.role == IdentifierObservationRole.SOURCE_IDENTITY
+    assert all("not-an-attestation" not in item.raw_value for item in identifiers)
+
+
 def test_source_identifiers_survive_sqlite_reload(tmp_path) -> None:
     source_id = "src_sqlite_identifiers"
     text = "Dataset DOI:10.1000/VERITY.TEST and ISBN 978-0-306-40615-7"
@@ -100,14 +124,15 @@ def test_source_identifiers_survive_sqlite_reload(tmp_path) -> None:
         source_id=source_id,
         spans=[span],
         references=[],
+        source_urls=["https://doi.org/10.1000/VERITY.TEST"],
     )
     document = SourceDocument(
         source_id=source_id,
-        source_type=SourceType.DOCUMENT,
+        source_type=SourceType.PUBLIC_URL,
         title="Identifier source",
-        filename="identifiers.txt",
-        source_format="txt",
-        mime_type="text/plain",
+        url="https://doi.org/10.1000/VERITY.TEST",
+        source_format="html",
+        mime_type="text/html",
         content_hash=sha256(text.encode("utf-8")).hexdigest(),
         size_bytes=len(text.encode("utf-8")),
     )
@@ -120,8 +145,15 @@ def test_source_identifiers_survive_sqlite_reload(tmp_path) -> None:
 
     reloaded = SqliteSourceRepository(database).get(source_id)
     assert reloaded is not None
-    assert [item.normalized_value for item in reloaded.identifiers] == [
-        "10.1000/verity.test",
-        "9780306406157",
+    assert [(item.normalized_value, item.role) for item in reloaded.identifiers] == [
+        ("10.1000/verity.test", IdentifierObservationRole.MENTION),
+        ("10.1000/verity.test", IdentifierObservationRole.SOURCE_IDENTITY),
+        ("9780306406157", IdentifierObservationRole.MENTION),
     ]
-    assert all(item.span_id == span.span_id for item in reloaded.identifiers)
+    identity = next(
+        item
+        for item in reloaded.identifiers
+        if item.role == IdentifierObservationRole.SOURCE_IDENTITY
+    )
+    assert identity.span_id is None
+    assert identity.context_text == "https://doi.org/10.1000/VERITY.TEST"

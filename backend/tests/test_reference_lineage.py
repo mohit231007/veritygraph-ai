@@ -94,7 +94,10 @@ def test_html_anchor_is_retained_only_when_enclosing_text_is_evidence() -> None:
     <html><body>
       <nav><a href="https://example.org/navigation">Navigation</a></nav>
       <article>
-        <p><a href="https://example.org/mellanox">Mellanox technology</a> connects accelerated systems.</p>
+        <p>
+          <a href="https://example.org/mellanox">Mellanox technology</a>
+          connects accelerated systems.
+        </p>
       </article>
     </body></html>
     """

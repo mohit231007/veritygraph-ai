@@ -39,7 +39,7 @@ test("two sources expose corroboration and transparent relationship signals", as
     "Source IDs ≠ independent reports",
   );
   await expect(page.getByTestId("comparison-guardrail")).toContainText(
-    "does not prove independence",
+    "absence does not prove independence",
   );
   await expect(page.getByTestId("source-profile-list")).toContainText("source-one.txt");
   await expect(page.getByTestId("source-profile-list")).toContainText("source-two.txt");
@@ -67,15 +67,19 @@ test("two sources expose corroboration and transparent relationship signals", as
   const diversity = page.getByTestId("claim-diversity");
   await expect(diversity).toContainText("2 distinct content fingerprints");
   await expect(diversity).toContainText("1 distinct evidence text");
-  await expect(diversity).toContainText("Repeated supporting text signal");
-  await expect(diversity).not.toContainText("Exact content duplicate signal");
 
-  const pair = page.getByTestId("source-pair-overlap");
-  await expect(pair).toContainText("1 shared / 3 union");
-  await expect(pair).toContainText("33.3% overlap");
-  await expect(pair).toContainText("1 exact shared supporting text");
-  await expect(pair).toContainText("Relationship review signal · not proof of copying");
-  await expect(pair).toContainText("Microsoft acquired GitHub.");
+  await expect(page.getByTestId("overlap-list")).toContainText("1 shared / 3 union");
+  await expect(page.getByTestId("overlap-list")).toContainText("33.3% overlap");
+
+  const relationship = page.getByTestId("source-relationship-signal");
+  await expect(relationship).toContainText("source-one.txt");
+  await expect(relationship).toContainText("source-two.txt");
+  await expect(relationship).toContainText("Different content fingerprints");
+  await expect(relationship).toContainText("1 exact supporting-text overlap");
+  await expect(relationship).toContainText(
+    "identical normalized supporting sentence on a shared resolved assertion",
+  );
+  await expect(relationship).toContainText("Possible derivation review signal · not proof of copying");
 
   await page.reload();
   await expect(page.getByTestId("workspace-detail")).toContainText("E2E Source Comparison");
@@ -86,8 +90,8 @@ test("two sources expose corroboration and transparent relationship signals", as
     timeout: 10_000,
   });
   await expect(page.getByTestId("relationship-signal-count")).toContainText("1");
-  await expect(page.getByTestId("source-pair-overlap")).toContainText(
-    "Relationship review signal · not proof of copying",
+  await expect(page.getByTestId("source-relationship-signal")).toContainText(
+    "Possible derivation review signal · not proof of copying",
   );
   await expect(page.getByTestId("contradiction-count")).toContainText("0");
 });

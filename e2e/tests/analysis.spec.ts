@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("workspace analysis extracts a relation and restores it after reload", async ({ page }) => {
+test("workspace analysis extracts a qualified relation and restores it after reload", async ({ page }) => {
   const workspaceName = "E2E NLP Evidence";
   const sentence = "Microsoft acquired GitHub in 2018.";
 
@@ -34,7 +34,13 @@ test("workspace analysis extracts a relation and restores it after reload", asyn
   await expect(relationList.getByText("GitHub", { exact: true })).toBeVisible();
   await expect(relationList.getByText(`“${sentence}”`, { exact: true })).toBeVisible();
   await expect(relationList.getByText("Rule score 92", { exact: true })).toBeVisible();
-  await expect(analysisPanel.getByText("Rule score ≠ factual probability")).toBeVisible();
+  await expect(relationList.getByText("AFFIRMED", { exact: true })).toBeVisible();
+  await expect(relationList.getByText("ASSERTED", { exact: true })).toBeVisible();
+  await expect(relationList.getByText("Year 2018", { exact: true })).toBeVisible();
+  await expect(
+    analysisPanel.getByText("Polarity · modality · explicit year scope · rule score ≠ truth"),
+  ).toBeVisible();
+  await expect(analysisPanel.getByText("Qualifier guardrail", { exact: true })).toBeVisible();
 
   await page.reload();
   await expect(page.getByTestId("api-status")).toHaveText("API healthy");
@@ -42,5 +48,9 @@ test("workspace analysis extracts a relation and restores it after reload", asyn
   await expect(page.getByTestId("analysis-status")).toContainText(
     "Latest completed analysis restored from SQLite.",
   );
-  await expect(page.getByTestId("relation-list").getByText("acquire", { exact: true })).toBeVisible();
+  const restoredRelations = page.getByTestId("relation-list");
+  await expect(restoredRelations.getByText("acquire", { exact: true })).toBeVisible();
+  await expect(restoredRelations.getByText("AFFIRMED", { exact: true })).toBeVisible();
+  await expect(restoredRelations.getByText("ASSERTED", { exact: true })).toBeVisible();
+  await expect(restoredRelations.getByText("Year 2018", { exact: true })).toBeVisible();
 });

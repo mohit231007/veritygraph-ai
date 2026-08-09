@@ -99,7 +99,7 @@ export default function CitationGraphPanel({ apiHealthy, workspace }: Props) {
   }, [apiHealthy, workspace]);
 
   useEffect(() => {
-    if (!containerRef.current || !graph) {
+    if (!containerRef.current || !graph || graph.edges.length === 0) {
       cytoscapeRef.current?.destroy();
       cytoscapeRef.current = null;
       return;
@@ -174,6 +174,10 @@ export default function CitationGraphPanel({ apiHealthy, workspace }: Props) {
     };
   }, [graph]);
 
+  const unresolvedCount = graph
+    ? graph.summary.unresolved_url_reference_count + graph.summary.unresolved_identifier_reference_count
+    : 0;
+
   return (
     <section className="citation-graph-panel" aria-labelledby="citation-graph-heading" data-testid="citation-graph-panel">
       <div className="citation-graph-heading">
@@ -193,7 +197,7 @@ export default function CitationGraphPanel({ apiHealthy, workspace }: Props) {
             <article data-testid="citation-edge-count"><span>Directed edges</span><strong>{graph.summary.edge_count}</strong></article>
             <article><span>URL evidence</span><strong>{graph.summary.url_reference_evidence_count}</strong></article>
             <article><span>Identifier evidence</span><strong>{graph.summary.identifier_reference_evidence_count}</strong></article>
-            <article><span>Unresolved</span><strong>{graph.summary.unresolved_url_reference_count + graph.summary.unresolved_identifier_reference_count}</strong></article>
+            <article><span>Unresolved</span><strong>{unresolvedCount}</strong></article>
             <article><span>Ambiguous</span><strong>{graph.summary.ambiguous_url_reference_count + graph.summary.ambiguous_identifier_reference_count}</strong></article>
           </div>
 
@@ -202,7 +206,32 @@ export default function CitationGraphPanel({ apiHealthy, workspace }: Props) {
             <p>{graph.interpretation_note}</p>
           </aside>
 
-          <div className="citation-graph-canvas" ref={containerRef} data-testid="citation-graph-canvas" />
+          {graph.edges.length > 0 ? (
+            <div className="citation-graph-canvas" ref={containerRef} data-testid="citation-graph-canvas" />
+          ) : (
+            <div className="citation-graph-empty-state" data-testid="citation-graph-empty-state">
+              <div>
+                <span>NO RESOLVED EDGES YET</span>
+                <strong>
+                  {graph.summary.source_count === 1
+                    ? "One source is indexed; topology begins when another workspace source resolves an explicit reference."
+                    : "Sources are indexed, but no explicit reference resolves uniquely between them yet."}
+                </strong>
+                <p>
+                  {unresolvedCount > 0
+                    ? `${unresolvedCount} reference evidence item${unresolvedCount === 1 ? " is" : "s are"} still unresolved. Ingest a cited target to turn eligible evidence into a directed edge.`
+                    : "Add another source that is explicitly referenced by an existing workspace source to create topology."}
+                </p>
+              </div>
+              {graph.nodes.length > 0 && (
+                <div className="citation-source-chips" aria-label="Workspace citation sources">
+                  {graph.nodes.map((node) => (
+                    <span key={node.source_id}>{node.label}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="citation-edge-list" data-testid="citation-edge-list">
             {graph.edges.map((edge) => (
@@ -216,9 +245,6 @@ export default function CitationGraphPanel({ apiHealthy, workspace }: Props) {
                 {edge.self_edge && <footer>Explicit self-reference</footer>}
               </article>
             ))}
-            {graph.edges.length === 0 && (
-              <p className="citation-graph-empty">No uniquely resolved explicit source-to-source references are currently eligible for citation topology.</p>
-            )}
           </div>
         </>
       )}

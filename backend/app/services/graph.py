@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import networkx as nx
 
-from app.domain.analysis import WorkspaceAnalysis
+from app.domain.analysis import AssertionPolarity, WorkspaceAnalysis
 from app.domain.graph import (
     EvidenceGraph,
     GraphEdge,
@@ -14,7 +14,7 @@ from app.domain.graph import (
     GraphSummary,
 )
 
-GRAPH_VERSION = "evidence-graph-v1"
+GRAPH_VERSION = "evidence-graph-v2-polarity"
 
 
 class GraphPathNotFoundError(ValueError):
@@ -27,6 +27,10 @@ def _analytics_projection(analysis: WorkspaceAnalysis) -> nx.DiGraph:
         graph.add_node(entity.entity_id)
 
     for relation in analysis.relations:
+        # A negated assertion is retained as evidence but must not masquerade as a
+        # positive relationship in structural analytics or connection paths.
+        if relation.polarity == AssertionPolarity.NEGATED:
+            continue
         support = max(1, len(relation.evidence))
         source_id = relation.subject_entity_id
         target_id = relation.object_entity_id
@@ -95,6 +99,8 @@ def build_evidence_graph(analysis: WorkspaceAnalysis) -> EvidenceGraph:
             source_entity_id=relation.subject_entity_id,
             target_entity_id=relation.object_entity_id,
             predicate=relation.predicate,
+            polarity=relation.polarity,
+            polarity_method=relation.polarity_method,
             extraction_score=relation.extraction_score,
             extraction_method=relation.extraction_method,
             evidence_count=len(relation.evidence),
@@ -103,7 +109,14 @@ def build_evidence_graph(analysis: WorkspaceAnalysis) -> EvidenceGraph:
         )
         for relation in analysis.relations
     ]
-    edges.sort(key=lambda edge: (-edge.evidence_count, -edge.extraction_score, edge.predicate))
+    edges.sort(
+        key=lambda edge: (
+            edge.polarity == AssertionPolarity.NEGATED,
+            -edge.evidence_count,
+            -edge.extraction_score,
+            edge.predicate,
+        )
+    )
 
     summary = GraphSummary(
         node_count=projection.number_of_nodes(),
@@ -132,7 +145,7 @@ def shortest_connection_path(
     source_entity_id: str,
     target_entity_id: str,
 ) -> GraphPath:
-    """Return the fewest-hop undirected connection path while retaining relation IDs."""
+    """Return the fewest-hop undirected positive/unknown connection path."""
 
     projection = _analytics_projection(analysis)
     if source_entity_id not in projection or target_entity_id not in projection:
@@ -150,6 +163,8 @@ def shortest_connection_path(
 
     relations_by_pair: dict[frozenset[str], list[str]] = defaultdict(list)
     for relation in analysis.relations:
+        if relation.polarity == AssertionPolarity.NEGATED:
+            continue
         pair = frozenset({relation.subject_entity_id, relation.object_entity_id})
         relations_by_pair[pair].append(relation.relation_id)
 

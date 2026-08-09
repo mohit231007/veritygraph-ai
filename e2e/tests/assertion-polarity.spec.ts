@@ -11,7 +11,7 @@ async function uploadAndAdd(page, name: string, text: string) {
   await page.getByTestId("workspace-add-source").click();
 }
 
-test("explicit opposing polarity creates one evidence-backed contradiction candidate", async ({ page }) => {
+test("unscoped asserted opposing polarity creates one evidence-backed contradiction candidate", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("api-status")).toHaveText("API healthy");
 
@@ -34,13 +34,15 @@ test("explicit opposing polarity creates one evidence-backed contradiction candi
   await expect(relations).toContainText("NOT acquire");
   await expect(relations).toContainText("NEGATED");
   await expect(relations).toContainText("AFFIRMED");
+  await expect(relations).toContainText("ASSERTED");
+  await expect(relations).toContainText("No explicit year");
 
   await expect(page.getByTestId("comparison-status")).toContainText("1 contradiction candidate", {
     timeout: 10_000,
   });
   await expect(page.getByTestId("contradiction-count")).toContainText("1");
   await expect(page.getByTestId("comparison-guardrail")).toContainText(
-    "Missing evidence ≠ contradiction",
+    "Silence, modality, or different time scope ≠ contradiction",
   );
 
   const candidate = page.getByTestId("contradiction-candidate");
@@ -48,6 +50,7 @@ test("explicit opposing polarity creates one evidence-backed contradiction candi
   await expect(candidate).toContainText("Microsoft");
   await expect(candidate).toContainText("acquire");
   await expect(candidate).toContainText("GitHub");
+  await expect(candidate).toContainText("No explicit year");
   await expect(candidate).toContainText("AFFIRMED");
   await expect(candidate).toContainText("NEGATED");
   await expect(candidate).toContainText("affirmed-source.txt");
@@ -60,6 +63,7 @@ test("explicit opposing polarity creates one evidence-backed contradiction candi
   await expect(graphEdges).toContainText("acquire");
   await expect(graphEdges).toContainText("NOT acquire");
   await expect(graphEdges).toContainText("NEGATED");
+  await expect(graphEdges).toContainText("ASSERTED");
 
   await page.reload();
   await expect(page.getByTestId("workspace-detail")).toContainText("E2E Assertion Polarity");

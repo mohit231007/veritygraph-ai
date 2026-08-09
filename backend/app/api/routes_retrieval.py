@@ -3,12 +3,20 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.domain.retrieval import RetrievalPreviewRequest, WorkspaceRetrievalPreview
+from app.domain.retrieval_evaluation import (
+    RetrievalEvaluationRequest,
+    WorkspaceRetrievalEvaluation,
+)
 from app.repositories.source_repository import SourceRepository, get_source_repository
 from app.repositories.workspace_repository import (
     WorkspaceRepository,
     get_workspace_repository,
 )
 from app.services.retrieval import build_workspace_retrieval_preview
+from app.services.retrieval_evaluation import (
+    RetrievalEvaluationError,
+    evaluate_workspace_retrieval,
+)
 
 router = APIRouter(prefix="/workspaces", tags=["retrieval"])
 WorkspaceRepositoryDependency = Annotated[
@@ -19,6 +27,19 @@ SourceRepositoryDependency = Annotated[
     SourceRepository,
     Depends(get_source_repository),
 ]
+
+
+def _workspace_or_404(
+    workspace_id: str,
+    repository: WorkspaceRepository,
+):
+    workspace = repository.get(workspace_id)
+    if workspace is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace not found.",
+        )
+    return workspace
 
 
 @router.post(
@@ -32,15 +53,36 @@ def preview_workspace_retrieval(
     workspace_repository: WorkspaceRepositoryDependency,
     source_repository: SourceRepositoryDependency,
 ) -> WorkspaceRetrievalPreview:
-    workspace = workspace_repository.get(workspace_id)
-    if workspace is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found.",
-        )
+    workspace = _workspace_or_404(workspace_id, workspace_repository)
     return build_workspace_retrieval_preview(
         workspace,
         query=request.query,
         limit=request.limit,
         source_repository=source_repository,
     )
+
+
+@router.post(
+    "/{workspace_id}/retrieval/evaluate",
+    response_model=WorkspaceRetrievalEvaluation,
+    summary="Evaluate the production ranker against explicit relevant-span labels",
+)
+def evaluate_workspace_retrieval_route(
+    workspace_id: str,
+    request: RetrievalEvaluationRequest,
+    workspace_repository: WorkspaceRepositoryDependency,
+    source_repository: SourceRepositoryDependency,
+) -> WorkspaceRetrievalEvaluation:
+    workspace = _workspace_or_404(workspace_id, workspace_repository)
+    try:
+        return evaluate_workspace_retrieval(
+            workspace,
+            cases=request.cases,
+            k_values=request.k_values,
+            source_repository=source_repository,
+        )
+    except RetrievalEvaluationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc

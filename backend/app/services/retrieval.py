@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
+from dataclasses import dataclass
 
 from app.domain.retrieval import (
     CitationContextDirection,
@@ -30,6 +31,13 @@ _BM25_K1 = 1.5
 _BM25_B = 0.75
 
 
+@dataclass(frozen=True)
+class RankedWorkspaceSpans:
+    hits: list[RetrievalHit]
+    indexed_span_count: int
+    query_terms: list[str]
+
+
 def _label(document: SourceDocument) -> str:
     return document.filename or document.title
 
@@ -40,6 +48,19 @@ def _tokens(value: str) -> list[str]:
 
 def _ordered_unique(values: list[str]) -> list[str]:
     return list(dict.fromkeys(values))
+
+
+def _workspace_spans(
+    workspace: WorkspaceDetail,
+    *,
+    source_repository: SourceRepository,
+) -> list[SourceSpan]:
+    spans: list[SourceSpan] = []
+    for document in workspace.sources:
+        bundle = source_repository.get(document.source_id)
+        if bundle is not None:
+            spans.extend(bundle.spans)
+    return spans
 
 
 def _bm25_scores(
@@ -72,9 +93,7 @@ def _bm25_scores(
             frequency_in_documents = document_frequency[term]
             inverse_document_frequency = math.log(
                 1
-                + (
-                    document_count - frequency_in_documents + 0.5
-                )
+                + (document_count - frequency_in_documents + 0.5)
                 / (frequency_in_documents + 0.5)
             )
             denominator = frequency + _BM25_K1 * (
@@ -89,22 +108,17 @@ def _bm25_scores(
     return results
 
 
-def build_workspace_retrieval_preview(
+def rank_workspace_spans(
     workspace: WorkspaceDetail,
     *,
     query: str,
     limit: int,
     source_repository: SourceRepository,
-) -> WorkspaceRetrievalPreview:
-    """Rank persisted spans, then attach citation neighbors as non-evidence context."""
+) -> RankedWorkspaceSpans:
+    """Run the production lexical ranker without graph expansion."""
 
     documents = {document.source_id: document for document in workspace.sources}
-    spans: list[SourceSpan] = []
-    for document in workspace.sources:
-        bundle = source_repository.get(document.source_id)
-        if bundle is not None:
-            spans.extend(bundle.spans)
-
+    spans = _workspace_spans(workspace, source_repository=source_repository)
     query_terms = _ordered_unique(_tokens(query))
     scored = _bm25_scores(spans, query_terms)
     scored.sort(
@@ -115,8 +129,7 @@ def build_workspace_retrieval_preview(
             item[0].span_id,
         )
     )
-    selected = scored[:limit]
-
+    selected = scored[: max(0, limit)]
     hits = [
         RetrievalHit(
             rank=index,
@@ -134,7 +147,29 @@ def build_workspace_retrieval_preview(
         )
         for index, (span, score, matched_terms) in enumerate(selected, start=1)
     ]
+    return RankedWorkspaceSpans(
+        hits=hits,
+        indexed_span_count=len(spans),
+        query_terms=query_terms,
+    )
 
+
+def build_workspace_retrieval_preview(
+    workspace: WorkspaceDetail,
+    *,
+    query: str,
+    limit: int,
+    source_repository: SourceRepository,
+) -> WorkspaceRetrievalPreview:
+    """Rank persisted spans, then attach citation neighbors as non-evidence context."""
+
+    ranked = rank_workspace_spans(
+        workspace,
+        query=query,
+        limit=limit,
+        source_repository=source_repository,
+    )
+    hits = ranked.hits
     hit_source_ids = {hit.source_id for hit in hits}
     citation_graph = build_workspace_citation_graph(
         workspace,
@@ -192,8 +227,8 @@ def build_workspace_retrieval_preview(
         query=query,
         summary=RetrievalPreviewSummary(
             workspace_source_count=len(workspace.sources),
-            indexed_span_count=len(spans),
-            query_term_count=len(query_terms),
+            indexed_span_count=ranked.indexed_span_count,
+            query_term_count=len(ranked.query_terms),
             direct_hit_count=len(hits),
             direct_hit_source_count=len(hit_source_ids),
             citation_context_count=len(citation_context),

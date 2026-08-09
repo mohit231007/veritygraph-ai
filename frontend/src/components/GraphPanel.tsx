@@ -131,7 +131,7 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
             "text-wrap": "wrap",
             "text-max-width": 90,
             "text-valign": "bottom",
-            "text-margin-y": 9,
+            "text-margin-y": "9px",
             width: "mapData(pagerank, 0, 1, 28, 72)",
             height: "mapData(pagerank, 0, 1, 28, 72)",
             "background-color": "#84a7ff",
@@ -153,7 +153,7 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
             color: "#b8c4de",
             "text-background-color": "#11182a",
             "text-background-opacity": 0.85,
-            "text-background-padding": 3,
+            "text-background-padding": "3px",
           },
         },
         {
@@ -222,8 +222,10 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
     const instance = cytoscapeRef.current;
     instance?.elements().unselect();
     const element = instance?.getElementById(node.entity_id);
-    element?.select();
-    element?.connectedEdges().connectedNodes().add(element ?? []).select();
+    if (element && element.length > 0) {
+      element.select();
+      element.connectedEdges().connectedNodes().select();
+    }
   }
 
   async function findPath() {
@@ -239,15 +241,21 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
       );
       const payload = (await response.json()) as GraphPath | { detail?: string };
       if (!response.ok) {
-        throw new Error("detail" in payload ? payload.detail ?? "No connection found." : "No connection found.");
+        throw new Error(
+          "detail" in payload ? payload.detail ?? "No connection found." : "No connection found.",
+        );
       }
       const resolved = payload as GraphPath;
       setPath(resolved);
-      setPathMessage(`${resolved.hop_count} hop${resolved.hop_count === 1 ? "" : "s"} in the undirected evidence graph.`);
+      setPathMessage(
+        `${resolved.hop_count} hop${resolved.hop_count === 1 ? "" : "s"} in the undirected evidence graph.`,
+      );
 
       const instance = cytoscapeRef.current;
       instance?.elements().removeClass("path-highlight");
-      resolved.entity_ids.forEach((entityId) => instance?.getElementById(entityId).addClass("path-highlight"));
+      resolved.entity_ids.forEach((entityId) => {
+        instance?.getElementById(entityId).addClass("path-highlight");
+      });
       resolved.steps.flatMap((step) => step.relation_ids).forEach((relationId) => {
         instance?.getElementById(relationId).addClass("path-highlight");
       });
@@ -279,7 +287,9 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
         </label>
       </div>
 
-      <p className="graph-status" aria-live="polite" data-testid="graph-status">{statusMessage}</p>
+      <p className="graph-status" aria-live="polite" data-testid="graph-status">
+        {statusMessage}
+      </p>
 
       {graph && (
         <>
@@ -334,7 +344,9 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
                     {selectedEdge.evidence_count} evidence record{selectedEdge.evidence_count === 1 ? "" : "s"}
                     {" · "}{selectedEdge.source_count} source{selectedEdge.source_count === 1 ? "" : "s"}
                   </p>
-                  <p>Rule score {Math.round(selectedEdge.extraction_score * 100)} · {selectedEdge.extraction_method.replaceAll("_", " ")}</p>
+                  <p>
+                    Rule score {Math.round(selectedEdge.extraction_score * 100)} · {selectedEdge.extraction_method.replaceAll("_", " ")}
+                  </p>
                   <div className="graph-evidence-list">
                     {selectedEdge.evidence.map((evidence) => (
                       <blockquote key={evidence.evidence_id}>
@@ -376,7 +388,9 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
                     <strong>{nodeById.get(edge.source_entity_id)?.label ?? edge.source_entity_id}</strong>
                     <span>{edge.predicate}</span>
                     <strong>{nodeById.get(edge.target_entity_id)?.label ?? edge.target_entity_id}</strong>
-                    <small>{edge.evidence_count} evidence · {edge.source_count} source{edge.source_count === 1 ? "" : "s"}</small>
+                    <small>
+                      {edge.evidence_count} evidence · {edge.source_count} source{edge.source_count === 1 ? "" : "s"}
+                    </small>
                   </button>
                 ))}
               </div>
@@ -389,14 +403,28 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
               <span>Fewest hops in the undirected evidence projection</span>
             </div>
             <div className="path-controls">
-              <select data-testid="path-from" value={pathFrom} onChange={(event) => setPathFrom(event.target.value)}>
-                {graph.nodes.map((node) => <option key={node.entity_id} value={node.entity_id}>{node.label}</option>)}
+              <select
+                data-testid="path-from"
+                value={pathFrom}
+                onChange={(event) => setPathFrom(event.target.value)}
+              >
+                {graph.nodes.map((node) => (
+                  <option key={node.entity_id} value={node.entity_id}>{node.label}</option>
+                ))}
               </select>
               <span>→</span>
-              <select data-testid="path-to" value={pathTo} onChange={(event) => setPathTo(event.target.value)}>
-                {graph.nodes.map((node) => <option key={node.entity_id} value={node.entity_id}>{node.label}</option>)}
+              <select
+                data-testid="path-to"
+                value={pathTo}
+                onChange={(event) => setPathTo(event.target.value)}
+              >
+                {graph.nodes.map((node) => (
+                  <option key={node.entity_id} value={node.entity_id}>{node.label}</option>
+                ))}
               </select>
-              <button type="button" data-testid="find-path-button" onClick={() => void findPath()}>Find connection</button>
+              <button type="button" data-testid="find-path-button" onClick={() => void findPath()}>
+                Find connection
+              </button>
             </div>
             <p className="path-message" data-testid="path-message">{pathMessage}</p>
             {path && (

@@ -6,7 +6,13 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 
-from app.domain.source import SourceBundle, SourceDocument, SourceType
+from app.domain.source import (
+    SourceBundle,
+    SourceDocument,
+    SourceReference,
+    SourceSpan,
+    SourceType,
+)
 from app.ingestion.documents import PARSERS
 from app.repositories.source_repository import SourceRepository
 from app.services.source_references import (
@@ -52,8 +58,8 @@ def _format_references(
     extension: str,
     source_id: str,
     content: bytes,
-    spans,
-):
+    spans: list[SourceSpan],
+) -> list[SourceReference]:
     visible = extract_visible_url_references(source_id, spans)
     if extension == ".docx":
         hidden = extract_docx_hyperlink_references(

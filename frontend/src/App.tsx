@@ -5,9 +5,11 @@ import BibliographicIdentityPanel from "./components/BibliographicIdentityPanel"
 import CitationGraphPanel from "./components/CitationGraphPanel";
 import ComparisonPanel from "./components/ComparisonPanel";
 import DocumentWorkspace from "./components/DocumentWorkspace";
+import EvidencePackPanel from "./components/EvidencePackPanel";
 import GraphPanel from "./components/GraphPanel";
 import PublicUrlWorkspace from "./components/PublicUrlWorkspace";
 import ReferenceLineagePanel from "./components/ReferenceLineagePanel";
+import RetrievalEvaluationPanel from "./components/RetrievalEvaluationPanel";
 import RetrievalPreviewPanel from "./components/RetrievalPreviewPanel";
 import SourcePreview from "./components/SourcePreview";
 import WikipediaWorkspace from "./components/WikipediaWorkspace";
@@ -62,15 +64,15 @@ export default function App() {
         <p className="eyebrow">LOCAL-FIRST · EVIDENCE-GROUNDED</p>
         <h1>VerityGraph AI</h1>
         <p className="lede">
-          Turn documents and public knowledge into connected intelligence where every future
-          relationship, claim and answer can be traced back to its exact evidence.
+          Turn documents and public knowledge into connected intelligence where relationships,
+          retrieval results and evidence packs remain traceable to their exact source spans.
         </p>
       </header>
 
       <section className="status-panel" aria-labelledby="system-status-heading">
         <div>
           <p className="section-label" id="system-status-heading">System</p>
-          <h2>Local intelligence workspace</h2>
+          <h2>Evidence intelligence workspace</h2>
         </div>
         <span className={`status status-${apiState}`} data-testid="api-status">
           {apiState === "checking" && "Checking API…"}
@@ -86,25 +88,17 @@ export default function App() {
         onWorkspaceChange={setActiveWorkspace}
       />
 
-      <ReferenceLineagePanel
-        apiHealthy={apiState === "healthy"}
-        workspace={activeWorkspace}
-      />
+      <ReferenceLineagePanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
 
-      <BibliographicIdentityPanel
-        apiHealthy={apiState === "healthy"}
-        workspace={activeWorkspace}
-      />
+      <BibliographicIdentityPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
 
-      <CitationGraphPanel
-        apiHealthy={apiState === "healthy"}
-        workspace={activeWorkspace}
-      />
+      <CitationGraphPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
 
-      <RetrievalPreviewPanel
-        apiHealthy={apiState === "healthy"}
-        workspace={activeWorkspace}
-      />
+      <RetrievalPreviewPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
+
+      <EvidencePackPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
+
+      <RetrievalEvaluationPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
 
       <AnalysisPanel
         apiHealthy={apiState === "healthy"}
@@ -181,7 +175,7 @@ export default function App() {
 
       {bundle && <SourcePreview bundle={bundle} />}
 
-      <section className="next-grid" aria-label="Product roadmap entry points">
+      <section className="next-grid" aria-label="Product capabilities">
         <article>
           <span>04</span>
           <h3>Analyse the workspace</h3>
@@ -189,13 +183,13 @@ export default function App() {
         </article>
         <article>
           <span>05</span>
-          <h3>Explore and compare</h3>
-          <p>Graph analytics and cross-source corroboration are projected from the immutable run.</p>
+          <h3>Explore, retrieve and compare</h3>
+          <p>Graph analytics, citation topology and measured retrieval remain inspectable.</p>
         </article>
         <article>
           <span>06</span>
-          <h3>Verify and improve</h3>
-          <p>Contradiction-aware evidence, claim review and versioned response improvement come next.</p>
+          <h3>Package grounded evidence</h3>
+          <p>Budgeted evidence packs preserve exact span and excerpt ranges for downstream use.</p>
         </article>
       </section>
     </main>

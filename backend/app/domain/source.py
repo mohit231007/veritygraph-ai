@@ -23,6 +23,7 @@ class BibliographicIdentifierKind(StrEnum):
 class IdentifierObservationRole(StrEnum):
     MENTION = "mention"
     REFERENCE = "reference"
+    SOURCE_IDENTITY = "source_identity"
 
 
 class SourceDocument(BaseModel):
@@ -94,9 +95,11 @@ class SourceReference(BaseModel):
 class SourceIdentifier(BaseModel):
     """One explicit bibliographic identifier observed with source provenance.
 
-    The normalized value is an identity key only. It does not imply that the source
-    authored, endorsed, cited, or supports the identified work. ``role`` separates
-    ordinary source mentions from identifiers observed inside retained references.
+    ``mention`` is an identifier present in retained source text. ``reference`` is
+    observed inside retained reference text or a supported reference URL.
+    ``source_identity`` is narrower: the source acquisition URL itself explicitly
+    identifies a DOI or arXiv work. None of these roles implies endorsement,
+    authorship, factual support, dependence, copying, or truth.
     """
 
     identifier_id: str

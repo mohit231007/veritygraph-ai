@@ -4,7 +4,7 @@ import "../bibliographic-identity.css";
 import type { WorkspaceDetail } from "../types";
 
 type IdentifierKind = "doi" | "arxiv" | "isbn";
-type IdentifierRole = "mention" | "reference";
+type IdentifierRole = "mention" | "reference" | "source_identity";
 type IdentifierResolution =
   | "no_workspace_match"
   | "workspace_unique"
@@ -26,6 +26,9 @@ type IdentifierObservation = {
   resolution: IdentifierResolution;
   matching_source_ids: string[];
   matching_labels: string[];
+  identity_target_resolution: IdentifierResolution;
+  identity_target_source_ids: string[];
+  identity_target_labels: string[];
   context_text: string | null;
   extraction_method: string;
 };
@@ -40,6 +43,9 @@ type WorkspaceIdentifierLineage = {
     matched_observation_count: number;
     ambiguous_observation_count: number;
     reference_linked_observation_count: number;
+    source_identity_observation_count: number;
+    resolved_identity_target_observation_count: number;
+    ambiguous_identity_target_observation_count: number;
   };
   identifiers: IdentifierObservation[];
   interpretation_note: string;
@@ -50,10 +56,26 @@ type Props = {
   workspace: WorkspaceDetail | null;
 };
 
-function resolutionLabel(observation: IdentifierObservation) {
-  if (observation.resolution === "workspace_unique") return "Exact workspace identity";
-  if (observation.resolution === "workspace_ambiguous") return "Ambiguous workspace identity";
-  return "No other workspace match";
+function sharedObservationLabel(observation: IdentifierObservation) {
+  if (observation.resolution === "workspace_unique") return "Shared by one other source";
+  if (observation.resolution === "workspace_ambiguous") return "Shared by multiple sources";
+  return "No other source observation";
+}
+
+function identityTargetLabel(observation: IdentifierObservation) {
+  if (observation.identity_target_resolution === "workspace_unique") {
+    return `Resolved source identity · ${observation.identity_target_labels[0]}`;
+  }
+  if (observation.identity_target_resolution === "workspace_ambiguous") {
+    return `Ambiguous source identity · ${observation.identity_target_labels.join(" · ")}`;
+  }
+  return null;
+}
+
+function roleLabel(role: IdentifierRole) {
+  if (role === "source_identity") return "Source identity attestation";
+  if (role === "reference") return "Reference-linked";
+  return "Source mention";
 }
 
 function locatorLabel(observation: IdentifierObservation) {
@@ -76,19 +98,19 @@ function identityLabel(observation: IdentifierObservation) {
 export default function BibliographicIdentityPanel({ apiHealthy, workspace }: Props) {
   const [lineage, setLineage] = useState<WorkspaceIdentifierLineage | null>(null);
   const [message, setMessage] = useState(
-    "Add sources to inspect DOI, arXiv, and ISBN identity signals.",
+    "Add sources to inspect DOI, arXiv, and ISBN provenance.",
   );
 
   useEffect(() => {
     if (!apiHealthy || !workspace) {
       setLineage(null);
-      setMessage("Add sources to inspect DOI, arXiv, and ISBN identity signals.");
+      setMessage("Add sources to inspect DOI, arXiv, and ISBN provenance.");
       return;
     }
 
     const workspaceId = workspace.workspace_id;
     const controller = new AbortController();
-    setMessage("Resolving bibliographic identifiers across workspace sources…");
+    setMessage("Resolving bibliographic observations and attested source identities…");
 
     async function loadLineage() {
       try {
@@ -100,7 +122,7 @@ export default function BibliographicIdentityPanel({ apiHealthy, workspace }: Pr
         const payload = (await response.json()) as WorkspaceIdentifierLineage;
         setLineage(payload);
         setMessage(
-          `Bibliographic identity ready · ${payload.summary.observation_count} observation${payload.summary.observation_count === 1 ? "" : "s"} · ${payload.summary.matched_observation_count} exact workspace match${payload.summary.matched_observation_count === 1 ? "" : "es"} · ${payload.summary.ambiguous_observation_count} ambiguous`,
+          `Bibliographic identity ready · ${payload.summary.observation_count} observation${payload.summary.observation_count === 1 ? "" : "s"} · ${payload.summary.matched_observation_count} shared across sources · ${payload.summary.resolved_identity_target_observation_count} resolved source identit${payload.summary.resolved_identity_target_observation_count === 1 ? "y" : "ies"} · ${payload.summary.ambiguous_identity_target_observation_count} ambiguous target${payload.summary.ambiguous_identity_target_observation_count === 1 ? "" : "s"}`,
         );
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -126,7 +148,7 @@ export default function BibliographicIdentityPanel({ apiHealthy, workspace }: Pr
       <div className="bibliographic-identity-heading">
         <div>
           <p className="section-label">BIBLIOGRAPHIC IDENTITY</p>
-          <h2 id="bibliographic-identity-heading">Exact DOI, arXiv, and ISBN matches</h2>
+          <h2 id="bibliographic-identity-heading">DOI, arXiv, and ISBN provenance</h2>
         </div>
         {lineage && <span>{lineage.lineage_version}</span>}
       </div>
@@ -144,22 +166,24 @@ export default function BibliographicIdentityPanel({ apiHealthy, workspace }: Pr
           <div className="bibliographic-identity-metrics">
             <article><span>Sources</span><strong>{lineage.summary.source_count}</strong></article>
             <article><span>Observations</span><strong>{lineage.summary.observation_count}</strong></article>
-            <article><span>Unique identities</span><strong>{lineage.summary.unique_identifier_count}</strong></article>
-            <article data-testid="bibliographic-match-count"><span>Exact workspace matches</span><strong>{lineage.summary.matched_observation_count}</strong></article>
-            <article><span>Reference-linked</span><strong>{lineage.summary.reference_linked_observation_count}</strong></article>
+            <article><span>Unique identifiers</span><strong>{lineage.summary.unique_identifier_count}</strong></article>
+            <article data-testid="bibliographic-match-count"><span>Shared observations</span><strong>{lineage.summary.matched_observation_count}</strong></article>
+            <article><span>Identity attestations</span><strong>{lineage.summary.source_identity_observation_count}</strong></article>
+            <article data-testid="resolved-identity-target-count"><span>Resolved identity targets</span><strong>{lineage.summary.resolved_identity_target_observation_count}</strong></article>
           </div>
 
           <aside
             className="bibliographic-identity-guardrail"
             data-testid="bibliographic-identity-guardrail"
           >
-            <strong>Identifier match ≠ citation, endorsement, authorship, dependence, or truth.</strong>
+            <strong>Shared identifier ≠ source identity. Source identity ≠ citation, endorsement, authorship, factual support, or truth.</strong>
             <p>{lineage.interpretation_note}</p>
           </aside>
 
           <div className="bibliographic-identity-list">
             {lineage.identifiers.map((observation) => {
               const locator = locatorLabel(observation);
+              const target = identityTargetLabel(observation);
               return (
                 <article
                   key={observation.identifier_id}
@@ -172,13 +196,14 @@ export default function BibliographicIdentityPanel({ apiHealthy, workspace }: Pr
                   </div>
                   <div className="bibliographic-identity-badges">
                     <span className={`identifier-resolution ${observation.resolution}`}>
-                      {resolutionLabel(observation)}
+                      {sharedObservationLabel(observation)}
                     </span>
-                    <span>{observation.role === "reference" ? "Reference-linked" : "Source mention"}</span>
+                    <span>{roleLabel(observation.role)}</span>
                   </div>
                   {observation.matching_labels.length > 0 && (
-                    <p>Matching source{observation.matching_labels.length === 1 ? "" : "s"} · {observation.matching_labels.join(" · ")}</p>
+                    <p>Other source observation{observation.matching_labels.length === 1 ? "" : "s"} · {observation.matching_labels.join(" · ")}</p>
                   )}
+                  {target && <p data-testid="identity-target">{target}</p>}
                   {locator && <p className="bibliographic-locator">{locator}</p>}
                   {observation.context_text && <blockquote>“{observation.context_text}”</blockquote>}
                   <footer>{observation.extraction_method}</footer>

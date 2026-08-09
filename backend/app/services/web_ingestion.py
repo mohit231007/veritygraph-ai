@@ -142,6 +142,7 @@ async def ingest_public_url(
         source_id=source_id,
         spans=spans,
         references=references,
+        source_urls=[page.requested_url, page.final_url],
     )
 
     normalized = "\n\n".join(paragraphs)

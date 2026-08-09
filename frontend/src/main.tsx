@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "./App";
+import "./handoff.css";
 import "./source-relationships.css";
 import "./styles.css";
 

@@ -13,7 +13,7 @@ from app.core.config import get_settings
 from app.domain.source import SourceBundle, SourceDocument, SourceSpan, SourceType
 from app.domain.web import RawWebPage
 from app.ingestion.web import FixtureWebFetcher, SafeHttpWebFetcher, WebFetcher
-from app.repositories.source_repository import InMemorySourceRepository
+from app.repositories.source_repository import SourceRepository
 
 
 class WebExtractionError(ValueError):
@@ -96,7 +96,7 @@ async def ingest_public_url(
     *,
     url: str,
     fetcher: WebFetcher,
-    repository: InMemorySourceRepository,
+    repository: SourceRepository,
 ) -> SourceBundle:
     """Fetch a validated public page and convert main content into evidence spans."""
 

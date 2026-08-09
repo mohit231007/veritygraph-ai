@@ -15,6 +15,8 @@ import time
 import urllib.request
 from collections.abc import Sequence
 
+QA_COMPOSE_PROJECT = "veritygraph_qa"
+
 
 def run(command: Sequence[str]) -> None:
     print(f"\n> {' '.join(command)}", flush=True)
@@ -58,6 +60,7 @@ def main() -> int:
         return 0
 
     docker = executable("docker")
+    compose = [docker, "compose", "-p", QA_COMPOSE_PROJECT]
     deterministic_providers = {
         "VERITYGRAPH_WIKIPEDIA_PROVIDER": "fixture",
         "VERITYGRAPH_WEB_PROVIDER": "fixture",
@@ -65,14 +68,20 @@ def main() -> int:
     previous_values = {name: os.environ.get(name) for name in deterministic_providers}
     os.environ.update(deterministic_providers)
 
+    # The QA stack uses its own Compose project. Its database volume is disposable,
+    # so the test suite cannot read, overwrite, or accumulate a developer's local data.
+    subprocess.run([*compose, "down", "--volumes", "--remove-orphans"], check=False)
     try:
-        run([docker, "compose", "up", "-d", "--build"])
+        run([*compose, "up", "-d", "--build"])
         wait_for("http://localhost:3000")
         run([npm, "--prefix", "e2e", "install"])
         run([npm, "--prefix", "e2e", "exec", "playwright", "install", "chromium"])
         run([npm, "--prefix", "e2e", "test"])
     finally:
-        subprocess.run([docker, "compose", "down", "--remove-orphans"], check=False)
+        subprocess.run(
+            [*compose, "down", "--volumes", "--remove-orphans"],
+            check=False,
+        )
         for name, previous_value in previous_values.items():
             if previous_value is None:
                 os.environ.pop(name, None)

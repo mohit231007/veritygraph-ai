@@ -5,5 +5,5 @@ test("real browser reaches the real VerityGraph API", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "VerityGraph AI" })).toBeVisible();
   await expect(page.getByTestId("api-status")).toHaveText("API healthy");
-  await expect(page.getByText("veritygraph-api · v0.4.0")).toBeVisible();
+  await expect(page.getByText("veritygraph-api · v0.5.0")).toBeVisible();
 });

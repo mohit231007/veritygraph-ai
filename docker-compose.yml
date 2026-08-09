@@ -6,8 +6,11 @@ services:
     environment:
       VERITYGRAPH_ENV: docker
       VERITYGRAPH_FRONTEND_ORIGIN: http://localhost:3000
+      VERITYGRAPH_DATABASE_PATH: /data/veritygraph.db
       VERITYGRAPH_WIKIPEDIA_PROVIDER: ${VERITYGRAPH_WIKIPEDIA_PROVIDER:-live}
       VERITYGRAPH_WEB_PROVIDER: ${VERITYGRAPH_WEB_PROVIDER:-live}
+    volumes:
+      - veritygraph_data:/data
     ports:
       - "8000:8000"
     healthcheck:
@@ -32,3 +35,6 @@ services:
         condition: service_healthy
     ports:
       - "3000:80"
+
+volumes:
+  veritygraph_data:

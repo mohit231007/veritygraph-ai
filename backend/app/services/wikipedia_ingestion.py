@@ -11,7 +11,7 @@ from app.ingestion.wikipedia import (
     MediaWikiWikipediaProvider,
     WikipediaProvider,
 )
-from app.repositories.source_repository import InMemorySourceRepository
+from app.repositories.source_repository import SourceRepository
 
 
 def _new_span_id() -> str:
@@ -40,7 +40,7 @@ async def ingest_wikipedia_sections(
     page_id: int,
     section_indices: list[str],
     provider: WikipediaProvider,
-    repository: InMemorySourceRepository,
+    repository: SourceRepository,
 ) -> SourceBundle:
     """Fetch selected Wikipedia sections and normalize them into source spans."""
 

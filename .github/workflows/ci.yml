@@ -44,11 +44,14 @@ jobs:
     env:
       VERITYGRAPH_WIKIPEDIA_PROVIDER: fixture
       VERITYGRAPH_WEB_PROVIDER: fixture
+      COMPOSE_PROJECT_NAME: veritygraph_ci
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Start from a clean QA volume
+        run: docker compose down --volumes --remove-orphans || true
       - name: Build and start stack
         run: docker compose up -d --build
       - name: Wait for frontend
@@ -68,6 +71,6 @@ jobs:
       - name: Docker logs on failure
         if: failure()
         run: docker compose logs
-      - name: Stop stack
+      - name: Stop stack and remove QA volume
         if: always()
-        run: docker compose down --remove-orphans
+        run: docker compose down --volumes --remove-orphans

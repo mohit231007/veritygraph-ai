@@ -33,6 +33,19 @@ export type SourceBundle = {
   spans: SourceSpan[];
 };
 
+export type WorkspaceSummary = {
+  workspace_id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  updated_at: string;
+  source_count: number;
+};
+
+export type WorkspaceDetail = WorkspaceSummary & {
+  sources: SourceDocument[];
+};
+
 export type WikipediaSearchResult = {
   page_id: number;
   title: string;

@@ -232,12 +232,10 @@ export type ComparisonClaim = {
   support_level: ClaimSupportLevel;
   source_count: number;
   source_ids: string[];
+  distinct_content_fingerprint_count: number;
+  distinct_evidence_text_count: number;
   evidence_count: number;
   evidence: RelationEvidence[];
-  distinct_content_count: number;
-  distinct_evidence_text_count: number;
-  content_duplicate_signal: boolean;
-  repeated_evidence_text_signal: boolean;
 };
 
 export type ContradictionCandidate = {
@@ -275,12 +273,19 @@ export type SourcePairOverlap = {
   union_claim_count: number;
   jaccard_similarity: number;
   shared_relation_ids: string[];
-  same_content_hash: boolean;
+};
+
+export type SourceRelationshipSignal = {
+  left_source_id: string;
+  right_source_id: string;
+  left_origin_host: string | null;
+  right_origin_host: string | null;
   same_origin_host: boolean;
-  shared_origin_host: string | null;
-  exact_shared_evidence_text_count: number;
-  exact_shared_evidence_texts: string[];
+  exact_content_fingerprint_match: boolean;
+  exact_evidence_text_overlap_count: number;
+  exact_evidence_relation_ids: string[];
   possible_derivation_signal: boolean;
+  review_reasons: string[];
 };
 
 export type SourceComparisonSummary = {
@@ -290,6 +295,9 @@ export type SourceComparisonSummary = {
   single_source_claim_count: number;
   contradiction_candidate_count: number;
   pair_count: number;
+  exact_content_match_pair_count: number;
+  exact_evidence_overlap_pair_count: number;
+  same_origin_pair_count: number;
   possible_derivation_pair_count: number;
 };
 
@@ -302,5 +310,6 @@ export type SourceComparison = {
   claims: ComparisonClaim[];
   contradictions: ContradictionCandidate[];
   overlaps: SourcePairOverlap[];
+  source_relationships: SourceRelationshipSignal[];
   interpretation_note: string;
 };

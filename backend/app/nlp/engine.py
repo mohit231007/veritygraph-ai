@@ -192,10 +192,13 @@ class SpacyNlpEngine:
         for item in span_documents:
             source_span = item.source_span
             document = item.document
+            entities_by_sentence: dict[int, list[Span]] = defaultdict(list)
+            for ent in document.ents:
+                if ent.label_ in self.entity_labels:
+                    entities_by_sentence[ent.sent.start].append(ent)
+
             for sentence in document.sents:
-                sentence_entities = [
-                    ent for ent in document.ents if ent.label_ in self.entity_labels and ent.sent == sentence
-                ]
+                sentence_entities = entities_by_sentence.get(sentence.start, [])
                 if len(sentence_entities) < 2:
                     continue
 

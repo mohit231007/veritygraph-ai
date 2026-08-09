@@ -46,7 +46,10 @@ test("workspace analysis extracts a qualified relation and restores it after rel
   await expect(page.getByTestId("api-status")).toHaveText("API healthy");
   await expect(page.getByTestId("workspace-detail").getByText(workspaceName, { exact: true })).toBeVisible();
   await expect(page.getByTestId("analysis-status")).toContainText(
-    "Latest completed analysis restored from SQLite.",
+    "Latest completed analysis restored from SQLite",
+  );
+  await expect(page.getByTestId("analysis-status")).toContainText(
+    "matched to the current source set",
   );
   const restoredRelations = page.getByTestId("relation-list");
   await expect(restoredRelations.getByText("acquire", { exact: true })).toBeVisible();

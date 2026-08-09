@@ -38,9 +38,10 @@ test("two sources expose corroborated and single-source evidence without inventi
     timeout: 20_000,
   });
   await expect(page.getByTestId("comparison-status")).toContainText(
-    "Comparison ready · 1 cross-source · 2 single-source claims",
+    "Comparison ready · 1 cross-source · 2 single-source",
     { timeout: 10_000 },
   );
+  await expect(page.getByTestId("contradiction-count")).toContainText("0");
 
   await expect(page.getByTestId("comparison-guardrail")).toContainText(
     "Missing evidence ≠ contradiction",
@@ -54,11 +55,12 @@ test("two sources expose corroborated and single-source evidence without inventi
   await expect(claimList).toContainText("Microsoft");
   await expect(claimList).toContainText("acquire");
   await expect(claimList).toContainText("GitHub");
+  await expect(claimList).toContainText("AFFIRMED");
   await expect(claimList).toContainText("2 sources");
 
   await claimList.getByRole("button").click();
   const detail = page.getByTestId("comparison-claim-detail");
-  await expect(detail).toContainText("CROSS-SOURCE SUPPORT");
+  await expect(detail).toContainText("AFFIRMED · CROSS-SOURCE SUPPORT");
   await expect(detail).toContainText("source-one.txt");
   await expect(detail).toContainText("source-two.txt");
   await expect(detail).toContainText("Microsoft acquired GitHub.");
@@ -74,6 +76,7 @@ test("two sources expose corroborated and single-source evidence without inventi
   await expect(page.getByTestId("comparison-status")).toContainText("Comparison ready", {
     timeout: 10_000,
   });
+  await expect(page.getByTestId("contradiction-count")).toContainText("0");
   await expect(page.getByTestId("comparison-guardrail")).toContainText(
     "Missing evidence ≠ contradiction",
   );

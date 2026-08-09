@@ -10,8 +10,8 @@ type Props = {
   workspace: WorkspaceDetail | null;
 };
 
-function sourceLabel(workspace: WorkspaceDetail, sourceId: string) {
-  const source = workspace.sources.find((item) => item.source_id === sourceId);
+function sourceLabel(workspace: WorkspaceDetail | null, sourceId: string) {
+  const source = workspace?.sources.find((item) => item.source_id === sourceId);
   return source ? source.filename ?? source.title : sourceId;
 }
 
@@ -34,13 +34,14 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
     }
 
     const controller = new AbortController();
+    const workspaceId = workspace.workspace_id;
     setState("loading");
     setMessage("Checking for the latest persisted analysis…");
 
     async function loadLatest() {
       try {
         const response = await fetch(
-          `/api/v1/workspaces/${workspace.workspace_id}/analyses/latest`,
+          `/api/v1/workspaces/${workspaceId}/analyses/latest`,
           { signal: controller.signal },
         );
         if (response.status === 404) {
@@ -114,7 +115,9 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
           <span>Evidence sources</span>
           <strong>{workspace?.source_count ?? 0}</strong>
         </div>
-        <p aria-live="polite" data-testid="analysis-status">{message ?? "Waiting for a workspace."}</p>
+        <p aria-live="polite" data-testid="analysis-status">
+          {message ?? "Waiting for a workspace."}
+        </p>
       </div>
 
       {analysis && (
@@ -144,7 +147,9 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
 
           <div className="analysis-provenance">
             <span>Run {analysis.run.run_id}</span>
-            <span>{analysis.run.model_name} · {analysis.run.model_version}</span>
+            <span>
+              {analysis.run.model_name} · {analysis.run.model_version}
+            </span>
             <span>{analysis.run.extractor_version}</span>
           </div>
 
@@ -161,7 +166,9 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
                       <strong>{entity.canonical_name}</strong>
                       <span>{entity.entity_type}</span>
                     </div>
-                    <span>{entity.mention_count} mention{entity.mention_count === 1 ? "" : "s"}</span>
+                    <span>
+                      {entity.mention_count} mention{entity.mention_count === 1 ? "" : "s"}
+                    </span>
                   </article>
                 ))}
                 {analysis.entities.length === 0 && (
@@ -179,9 +186,13 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
                 {analysis.relations.slice(0, 16).map((relation) => (
                   <article className="relation-card" key={relation.relation_id}>
                     <div className="relation-triplet">
-                      <strong>{entityNames.get(relation.subject_entity_id) ?? relation.subject_entity_id}</strong>
+                      <strong>
+                        {entityNames.get(relation.subject_entity_id) ?? relation.subject_entity_id}
+                      </strong>
                       <span>{relation.predicate}</span>
-                      <strong>{entityNames.get(relation.object_entity_id) ?? relation.object_entity_id}</strong>
+                      <strong>
+                        {entityNames.get(relation.object_entity_id) ?? relation.object_entity_id}
+                      </strong>
                     </div>
                     <div className="relation-meta">
                       <span>Rule score {Math.round(relation.extraction_score * 100)}</span>
@@ -191,7 +202,7 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
                       <blockquote key={evidence.evidence_id}>
                         <p>“{evidence.text}”</p>
                         <footer>
-                          {sourceLabel(workspace!, evidence.source_id)} · {evidence.span_id}
+                          {sourceLabel(workspace, evidence.source_id)} · {evidence.span_id}
                         </footer>
                       </blockquote>
                     ))}

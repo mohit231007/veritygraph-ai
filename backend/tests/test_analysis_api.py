@@ -74,6 +74,7 @@ def test_workspace_analysis_persists_entities_relations_and_exact_evidence() -> 
     assert run["model_version"]
     assert run["pipeline_version"] == "spacy-baseline-v1"
     assert run["extractor_version"] == "dependency-relations-v1"
+    assert run["resolver_version"] == "deterministic-org-aliases-v1"
     assert run["source_count"] == 1
     assert run["span_count"] == 1
     assert run["entity_count"] >= 2
@@ -107,6 +108,37 @@ def test_workspace_analysis_persists_entities_relations_and_exact_evidence() -> 
     restored = fresh_repository.get(run["run_id"])
     assert restored is not None
     assert restored.model_dump(mode="json") == analysis
+
+
+def test_real_model_resolver_consolidates_organization_legal_suffixes() -> None:
+    workspace_id, _source_id, _span_id = create_workspace_with_evidence(
+        "Microsoft Corporation acquired GitHub. Microsoft acquired OpenAI."
+    )
+
+    response = client.post(f"/api/v1/workspaces/{workspace_id}/analyses")
+
+    assert response.status_code == 201
+    analysis = response.json()
+    microsoft_entities = [
+        entity
+        for entity in analysis["entities"]
+        if "Microsoft" in {mention["text"] for mention in entity["mentions"]}
+    ]
+    assert len(microsoft_entities) == 1
+    microsoft = microsoft_entities[0]
+    assert microsoft["canonical_name"] == "Microsoft"
+    assert {mention["text"] for mention in microsoft["mentions"]} == {
+        "Microsoft Corporation",
+        "Microsoft",
+    }
+
+    microsoft_relations = [
+        relation
+        for relation in analysis["relations"]
+        if relation["subject_entity_id"] == microsoft["entity_id"]
+        and relation["predicate"] == "acquire"
+    ]
+    assert len(microsoft_relations) == 2
 
 
 def test_reanalysis_creates_new_immutable_run_and_latest_points_to_newest() -> None:

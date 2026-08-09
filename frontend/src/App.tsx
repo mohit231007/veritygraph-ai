@@ -2,11 +2,17 @@ import { useEffect, useState } from "react";
 
 import AnalysisPanel from "./components/AnalysisPanel";
 import DocumentWorkspace from "./components/DocumentWorkspace";
+import GraphPanel from "./components/GraphPanel";
 import PublicUrlWorkspace from "./components/PublicUrlWorkspace";
 import SourcePreview from "./components/SourcePreview";
 import WikipediaWorkspace from "./components/WikipediaWorkspace";
 import WorkspaceManager from "./components/WorkspaceManager";
-import type { HealthResponse, SourceBundle, WorkspaceDetail } from "./types";
+import type {
+  HealthResponse,
+  SourceBundle,
+  WorkspaceAnalysis,
+  WorkspaceDetail,
+} from "./types";
 
 type ApiState = "checking" | "healthy" | "unavailable";
 type SourceMode = "documents" | "wikipedia" | "public-url";
@@ -17,6 +23,7 @@ export default function App() {
   const [sourceMode, setSourceMode] = useState<SourceMode>("documents");
   const [bundle, setBundle] = useState<SourceBundle | null>(null);
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceDetail | null>(null);
+  const [activeAnalysis, setActiveAnalysis] = useState<WorkspaceAnalysis | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -77,6 +84,13 @@ export default function App() {
       <AnalysisPanel
         apiHealthy={apiState === "healthy"}
         workspace={activeWorkspace}
+        onAnalysisChange={setActiveAnalysis}
+      />
+
+      <GraphPanel
+        apiHealthy={apiState === "healthy"}
+        workspace={activeWorkspace}
+        analysis={activeAnalysis}
       />
 
       <section className="source-studio" aria-labelledby="source-studio-heading">
@@ -140,12 +154,12 @@ export default function App() {
         <article>
           <span>04</span>
           <h3>Analyse the workspace</h3>
-          <p>Local NER and relationship extraction now retain exact evidence lineage per run.</p>
+          <p>Local NER and relationship extraction retain exact evidence lineage per immutable run.</p>
         </article>
         <article>
           <span>05</span>
-          <h3>Build the evidence graph</h3>
-          <p>Project versioned entities and relationships into an interactive, inspectable graph.</p>
+          <h3>Explore the evidence graph</h3>
+          <p>PageRank, centrality, communities and connection paths are projected from the run.</p>
         </article>
         <article>
           <span>06</span>

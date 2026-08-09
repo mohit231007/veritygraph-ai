@@ -72,6 +72,14 @@ jobs:
         run: npm --prefix e2e exec playwright install --with-deps chromium
       - name: Playwright
         run: npm --prefix e2e test
+      - name: Preserve Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-failure-${{ github.run_id }}
+          path: e2e/test-results/
+          if-no-files-found: warn
+          retention-days: 3
       - name: Docker logs on failure
         if: failure()
         run: docker compose logs

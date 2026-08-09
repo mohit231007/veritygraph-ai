@@ -4,20 +4,24 @@
 
 VerityGraph turns heterogeneous unstructured sources into a single evidence-aware intelligence model. Ingestion is intentionally separated from analysis so PDF, DOCX, Wikipedia, and web inputs do not create parallel NLP implementations.
 
-## Target flow
+## Current flow
 
 ```text
 Document upload ─┐
 Wikipedia ────────┼─> SourceDocument / SourceSpan
 Public URL ───────┘             |
                                v
-                         NLP / extraction
+                      Persistent workspace
+                               |
+                               v
+                      Immutable AnalysisRun
                                |
                   Entity + Relation + Evidence
                                |
-                         Knowledge graph
+                               v
+                     EvidenceGraph projection
                      /          |          \
-                Analytics   Evidence UI   GraphRAG
+                Analytics   Evidence UI   future GraphRAG
 ```
 
 ## Core invariant
@@ -25,24 +29,34 @@ Public URL ───────┘             |
 A source-derived graph relation is valid only when its lineage is complete:
 
 ```text
-Relation -> Evidence -> SourceSpan -> SourceDocument
+GraphEdge -> Relation -> RelationEvidence -> SourceSpan -> SourceDocument
 ```
+
+The graph is a projection of the immutable analysis run rather than a second source of truth. Changing a visual layout cannot rewrite evidence, entities, relations, analytics, or source lineage.
 
 No generated response is allowed to rewrite source evidence. Response improvement creates a new response version; source truth and analysis-run provenance remain immutable.
 
-## Planned domain boundaries
+## Domain boundaries
 
 - `ingestion`: obtains permitted content and preserves source structure.
-- `domain`: canonical source, entity, relation, evidence, feedback, and run models.
-- `nlp`: NER, relation extraction, entity resolution, confidence.
-- `graph`: storage abstraction, graph construction, algorithms and queries.
+- `domain`: canonical source, analysis, entity, relation, evidence, graph, feedback, and run models.
+- `nlp`: NER, relation extraction, entity resolution, and future calibrated confidence.
+- `graph`: deterministic analysis-run projection, algorithms, paths, and future storage adapters.
 - `insights`: source-derived facts and computed graph observations.
 - `rag`: optional local synthesis over explicitly selected evidence.
 - `api`: HTTP contracts only; orchestration belongs in services.
 
 ## Storage strategy
 
-Phase 1 starts with SQLite metadata and NetworkX graphs to keep the product zero-dependency and local-first. Neo4j Community and PostgreSQL are adapters, not requirements.
+SQLite stores canonical sources, workspaces, immutable analysis runs, entities, relations, and evidence. The current NetworkX evidence graph is regenerated from an analysis run rather than persisted as a separate mutable graph blob.
+
+This keeps the product local-first while leaving room for Neo4j Community or PostgreSQL adapters if later workloads justify them.
+
+## Graph analytics boundary
+
+NetworkX is the backend analytical engine. It computes structural metrics such as PageRank, centrality, communities, components, density, and connection paths from one specific analysis run.
+
+Cytoscape.js is the browser rendering and interaction layer. It can change layout, selection, and path highlighting, but it is not allowed to become the authoritative source for graph analytics or evidence lineage.
 
 ## Response improvement semantics
 

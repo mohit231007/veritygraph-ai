@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import "../workspace.css";
 import type { SourceDocument, WorkspaceDetail, WorkspaceSummary } from "../types";
 
+const ACTIVE_WORKSPACE_STORAGE_KEY = "veritygraph.activeWorkspaceId";
+
 type Props = {
   apiHealthy: boolean;
   currentSource: SourceDocument | null;
@@ -15,7 +17,9 @@ export default function WorkspaceManager({
   onWorkspaceChange,
 }: Props) {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
-  const [activeId, setActiveId] = useState<string>("");
+  const [activeId, setActiveId] = useState<string>(
+    () => window.localStorage.getItem(ACTIVE_WORKSPACE_STORAGE_KEY) ?? "",
+  );
   const [detail, setDetail] = useState<WorkspaceDetail | null>(null);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -55,6 +59,14 @@ export default function WorkspaceManager({
   useEffect(() => {
     onWorkspaceChange(detail);
   }, [detail, onWorkspaceChange]);
+
+  useEffect(() => {
+    if (activeId) {
+      window.localStorage.setItem(ACTIVE_WORKSPACE_STORAGE_KEY, activeId);
+    } else {
+      window.localStorage.removeItem(ACTIVE_WORKSPACE_STORAGE_KEY);
+    }
+  }, [activeId]);
 
   useEffect(() => {
     if (!apiHealthy) return;

@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Node
+node_modules/
+frontend/dist/
+e2e/test-results/
+e2e/playwright-report/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Application data
+.veritygraph/
+data/
+uploads/
+artifacts/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

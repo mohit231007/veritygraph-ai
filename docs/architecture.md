@@ -16,7 +16,17 @@ Public URL ───────┘             |
                                v
                       Immutable AnalysisRun
                                |
-                  Entity + Relation + Evidence
+                               v
+                     Local NLP extraction
+                               |
+                  Raw Entity + Relation + Evidence
+                               |
+                               v
+              Deterministic entity resolution
+                  /                         \
+        canonical entities          remapped relations
+                  \                         /
+                   +------ Evidence ------+
                                |
                                v
                      EvidenceGraph projection
@@ -32,6 +42,8 @@ A source-derived graph relation is valid only when its lineage is complete:
 GraphEdge -> Relation -> RelationEvidence -> SourceSpan -> SourceDocument
 ```
 
+Entity resolution may change which canonical entity ID a mention or relation points to, but it never changes the original mention text, evidence sentence, source span, or source document. The immutable analysis run records the resolver version used to make those identity decisions.
+
 The graph is a projection of the immutable analysis run rather than a second source of truth. Changing a visual layout cannot rewrite evidence, entities, relations, analytics, or source lineage.
 
 No generated response is allowed to rewrite source evidence. Response improvement creates a new response version; source truth and analysis-run provenance remain immutable.
@@ -40,17 +52,23 @@ No generated response is allowed to rewrite source evidence. Response improvemen
 
 - `ingestion`: obtains permitted content and preserves source structure.
 - `domain`: canonical source, analysis, entity, relation, evidence, graph, feedback, and run models.
-- `nlp`: NER, relation extraction, entity resolution, and future calibrated confidence.
+- `nlp`: NER, relation extraction, deterministic entity resolution, and future calibrated confidence.
 - `graph`: deterministic analysis-run projection, algorithms, paths, and future storage adapters.
 - `insights`: source-derived facts and computed graph observations.
 - `rag`: optional local synthesis over explicitly selected evidence.
 - `api`: HTTP contracts only; orchestration belongs in services.
 
+## Entity identity boundary
+
+The first resolver operates after local NLP extraction and before the completed run is persisted. It currently consolidates only explainable `ORG` aliases: legal-suffix variants and unique acronym/full-name matches. Ambiguous candidates remain separate.
+
+Because resolution happens before graph projection, all downstream analytics see the same canonical identities. Original mention strings remain attached to the canonical entity with source/span/offset lineage, so normalization does not erase what the evidence actually said.
+
 ## Storage strategy
 
-SQLite stores canonical sources, workspaces, immutable analysis runs, entities, relations, and evidence. The current NetworkX evidence graph is regenerated from an analysis run rather than persisted as a separate mutable graph blob.
+SQLite stores canonical sources, workspaces, immutable analysis runs, resolved entities, remapped relations, and evidence. Each analysis run stores its model, extractor, and resolver versions. Existing databases are migrated in place when new lineage fields are introduced.
 
-This keeps the product local-first while leaving room for Neo4j Community or PostgreSQL adapters if later workloads justify them.
+The current NetworkX evidence graph is regenerated from an analysis run rather than persisted as a separate mutable graph blob. This keeps the product local-first while leaving room for Neo4j Community or PostgreSQL adapters if later workloads justify them.
 
 ## Graph analytics boundary
 

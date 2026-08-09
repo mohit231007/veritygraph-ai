@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import "../analysis.css";
-import type { WorkspaceAnalysis, WorkspaceDetail } from "../types";
+import type { AnalysisEntity, WorkspaceAnalysis, WorkspaceDetail } from "../types";
 
 type AnalysisState = "idle" | "loading" | "ready" | "error";
 
@@ -14,6 +14,13 @@ type Props = {
 function sourceLabel(workspace: WorkspaceDetail | null, sourceId: string) {
   const source = workspace?.sources.find((item) => item.source_id === sourceId);
   return source ? source.filename ?? source.title : sourceId;
+}
+
+function entityAliases(entity: AnalysisEntity) {
+  const canonical = entity.canonical_name.toLocaleLowerCase();
+  return Array.from(new Set(entity.mentions.map((mention) => mention.text))).filter(
+    (alias) => alias.toLocaleLowerCase() !== canonical,
+  );
 }
 
 export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange }: Props) {
@@ -74,7 +81,7 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
     if (!workspace || workspace.source_count === 0) return;
 
     setState("loading");
-    setMessage("Running local NER and evidence-linked dependency extraction…");
+    setMessage("Running local NER, relationship extraction and deterministic alias resolution…");
     try {
       const response = await fetch(
         `/api/v1/workspaces/${workspace.workspace_id}/analyses`,
@@ -141,21 +148,33 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
             <span>Run {analysis.run.run_id}</span>
             <span>{analysis.run.model_name} · {analysis.run.model_version}</span>
             <span>{analysis.run.extractor_version}</span>
+            <span>{analysis.run.resolver_version}</span>
           </div>
 
           <div className="analysis-columns">
             <section aria-labelledby="entities-heading">
               <div className="analysis-subheading">
                 <h3 id="entities-heading">Top entities</h3>
-                <span>Exact normalized mentions · alias resolution comes next</span>
+                <span>Exact mentions + conservative deterministic ORG aliases</span>
               </div>
               <div className="entity-list" data-testid="entity-list">
-                {analysis.entities.slice(0, 12).map((entity) => (
-                  <article key={entity.entity_id}>
-                    <div><strong>{entity.canonical_name}</strong><span>{entity.entity_type}</span></div>
-                    <span>{entity.mention_count} mention{entity.mention_count === 1 ? "" : "s"}</span>
-                  </article>
-                ))}
+                {analysis.entities.slice(0, 12).map((entity) => {
+                  const aliases = entityAliases(entity);
+                  return (
+                    <article key={entity.entity_id}>
+                      <div>
+                        <strong>{entity.canonical_name}</strong>
+                        <span>{entity.entity_type}</span>
+                        {aliases.length > 0 && (
+                          <small className="entity-aliases" data-testid="entity-aliases">
+                            Aliases: {aliases.join(", ")}
+                          </small>
+                        )}
+                      </div>
+                      <span>{entity.mention_count} mention{entity.mention_count === 1 ? "" : "s"}</span>
+                    </article>
+                  );
+                })}
                 {analysis.entities.length === 0 && (
                   <p className="analysis-empty">No selected entity types were detected in this corpus.</p>
                 )}

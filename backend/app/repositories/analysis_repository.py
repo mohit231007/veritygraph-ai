@@ -57,6 +57,7 @@ class SqliteAnalysisRepository:
                     model_name TEXT NOT NULL,
                     model_version TEXT NOT NULL,
                     extractor_version TEXT NOT NULL,
+                    resolver_version TEXT NOT NULL DEFAULT 'none',
                     started_at TEXT NOT NULL,
                     completed_at TEXT,
                     duration_ms INTEGER,
@@ -132,6 +133,17 @@ class SqliteAnalysisRepository:
                 );
                 """
             )
+            run_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(analysis_runs)").fetchall()
+            }
+            if "resolver_version" not in run_columns:
+                connection.execute(
+                    """
+                    ALTER TABLE analysis_runs
+                    ADD COLUMN resolver_version TEXT NOT NULL DEFAULT 'none'
+                    """
+                )
 
     def save(self, analysis: WorkspaceAnalysis) -> WorkspaceAnalysis:
         run = analysis.run
@@ -140,10 +152,10 @@ class SqliteAnalysisRepository:
                 """
                 INSERT INTO analysis_runs (
                     run_id, workspace_id, status, pipeline_version, model_name,
-                    model_version, extractor_version, started_at, completed_at,
-                    duration_ms, source_count, span_count, entity_count,
+                    model_version, extractor_version, resolver_version, started_at,
+                    completed_at, duration_ms, source_count, span_count, entity_count,
                     relation_count, error
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(run_id) DO UPDATE SET
                     status = excluded.status,
                     completed_at = excluded.completed_at,
@@ -162,6 +174,7 @@ class SqliteAnalysisRepository:
                     run.model_name,
                     run.model_version,
                     run.extractor_version,
+                    run.resolver_version,
                     run.started_at.isoformat(),
                     run.completed_at.isoformat() if run.completed_at else None,
                     run.duration_ms,
@@ -325,6 +338,7 @@ class SqliteAnalysisRepository:
             model_name=row["model_name"],
             model_version=row["model_version"],
             extractor_version=row["extractor_version"],
+            resolver_version=row["resolver_version"],
             started_at=row["started_at"],
             completed_at=row["completed_at"],
             duration_ms=row["duration_ms"],

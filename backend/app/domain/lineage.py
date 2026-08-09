@@ -1,6 +1,14 @@
 from __future__ import annotations
 
+from enum import StrEnum
+
 from pydantic import BaseModel, Field
+
+
+class ReferenceResolution(StrEnum):
+    EXTERNAL = "external"
+    WORKSPACE_UNIQUE = "workspace_unique"
+    WORKSPACE_AMBIGUOUS = "workspace_ambiguous"
 
 
 class ReferenceLineageEdge(BaseModel):
@@ -10,12 +18,12 @@ class ReferenceLineageEdge(BaseModel):
     span_id: str | None = None
     target_url: str
     normalized_target_url: str
-    target_source_id: str | None = None
-    target_label: str | None = None
+    resolution: ReferenceResolution
+    target_source_ids: list[str] = Field(default_factory=list)
+    target_labels: list[str] = Field(default_factory=list)
     anchor_text: str | None = None
     context_text: str | None = None
     extraction_method: str
-    resolved_to_workspace_source: bool = False
     self_reference: bool = False
 
 
@@ -23,6 +31,7 @@ class ReferenceLineageSummary(BaseModel):
     source_count: int = Field(ge=0)
     reference_count: int = Field(ge=0)
     resolved_workspace_reference_count: int = Field(ge=0)
+    ambiguous_workspace_reference_count: int = Field(ge=0)
     external_reference_count: int = Field(ge=0)
     self_reference_count: int = Field(ge=0)
 

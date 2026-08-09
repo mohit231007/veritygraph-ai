@@ -1,6 +1,8 @@
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
+
 from app.core.config import get_settings
 from app.main import app
 from app.repositories.analysis_repository import (
@@ -9,7 +11,6 @@ from app.repositories.analysis_repository import (
 )
 from app.repositories.source_repository import get_source_repository
 from app.repositories.workspace_repository import get_workspace_repository
-from fastapi.testclient import TestClient
 
 client = TestClient(app)
 

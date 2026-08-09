@@ -1,5 +1,6 @@
 services:
   backend:
+    image: veritygraph-backend:0.9.0
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -11,7 +12,6 @@ services:
       VERITYGRAPH_WEB_PROVIDER: ${VERITYGRAPH_WEB_PROVIDER:-live}
     volumes:
       - veritygraph_data:/data
-      - ./backups:/backups
     expose:
       - "8000"
     restart: unless-stopped
@@ -57,6 +57,15 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     restart: unless-stopped
+
+  backup:
+    image: veritygraph-backend:0.9.0
+    profiles: ["ops"]
+    user: "0:0"
+    volumes:
+      - veritygraph_data:/data
+      - ./backups:/backups
+    entrypoint: ["python", "scripts/sqlite_backup.py"]
 
 volumes:
   veritygraph_data:

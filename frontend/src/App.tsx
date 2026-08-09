@@ -31,6 +31,9 @@ export default function App() {
   const [bundle, setBundle] = useState<SourceBundle | null>(null);
   const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceDetail | null>(null);
   const [activeAnalysis, setActiveAnalysis] = useState<WorkspaceAnalysis | null>(null);
+  const [workspaceRefreshToken, setWorkspaceRefreshToken] = useState(0);
+  const [handoffBusy, setHandoffBusy] = useState(false);
+  const [handoffMessage, setHandoffMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -53,9 +56,46 @@ export default function App() {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    setHandoffMessage(null);
+  }, [bundle?.document.source_id]);
+
   function changeMode(mode: SourceMode) {
     setSourceMode(mode);
     setBundle(null);
+  }
+
+  const currentSource = bundle?.document ?? null;
+  const currentSourceSaved =
+    Boolean(currentSource) &&
+    Boolean(
+      activeWorkspace?.sources.some((source) => source.source_id === currentSource?.source_id),
+    );
+
+  async function addImportedSourceToWorkspace() {
+    if (!activeWorkspace || !currentSource) return;
+    setHandoffBusy(true);
+    setHandoffMessage(null);
+    try {
+      const response = await fetch(
+        `/api/v1/workspaces/${activeWorkspace.workspace_id}/sources/${currentSource.source_id}`,
+        { method: "PUT" },
+      );
+      const payload = (await response.json()) as WorkspaceDetail | { detail?: string };
+      if (!response.ok) {
+        throw new Error(
+          "detail" in payload ? payload.detail ?? "Could not add source." : "Could not add source.",
+        );
+      }
+      const updated = payload as WorkspaceDetail;
+      setActiveWorkspace(updated);
+      setWorkspaceRefreshToken((current) => current + 1);
+      setHandoffMessage(`Saved “${currentSource.filename ?? currentSource.title}” in ${updated.name}.`);
+    } catch (error) {
+      setHandoffMessage(error instanceof Error ? error.message : "Could not add source.");
+    } finally {
+      setHandoffBusy(false);
+    }
   }
 
   return (
@@ -84,38 +124,9 @@ export default function App() {
 
       <WorkspaceManager
         apiHealthy={apiState === "healthy"}
-        currentSource={bundle?.document ?? null}
+        currentSource={currentSource}
         onWorkspaceChange={setActiveWorkspace}
-      />
-
-      <ReferenceLineagePanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
-
-      <BibliographicIdentityPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
-
-      <CitationGraphPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
-
-      <RetrievalPreviewPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
-
-      <EvidencePackPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
-
-      <RetrievalEvaluationPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
-
-      <AnalysisPanel
-        apiHealthy={apiState === "healthy"}
-        workspace={activeWorkspace}
-        onAnalysisChange={setActiveAnalysis}
-      />
-
-      <GraphPanel
-        apiHealthy={apiState === "healthy"}
-        workspace={activeWorkspace}
-        analysis={activeAnalysis}
-      />
-
-      <ComparisonPanel
-        apiHealthy={apiState === "healthy"}
-        workspace={activeWorkspace}
-        analysis={activeAnalysis}
+        refreshToken={workspaceRefreshToken}
       />
 
       <section className="source-studio" aria-labelledby="source-studio-heading">
@@ -174,6 +185,84 @@ export default function App() {
       )}
 
       {bundle && <SourcePreview bundle={bundle} />}
+
+      {currentSource && (
+        <section
+          className={`source-workspace-handoff${currentSourceSaved ? " saved" : ""}`}
+          data-testid="source-workspace-handoff"
+          aria-labelledby="source-workspace-handoff-heading"
+        >
+          <div>
+            <p className="section-label">WORKSPACE HANDOFF</p>
+            <h2 id="source-workspace-handoff-heading">
+              {currentSourceSaved
+                ? "Source is ready for workspace intelligence"
+                : "Keep the imported source with your research"}
+            </h2>
+            <p>
+              {activeWorkspace
+                ? currentSourceSaved
+                  ? `“${currentSource.filename ?? currentSource.title}” is saved in ${activeWorkspace.name}. Retrieval, analysis, comparison and graph views can now use it.`
+                  : `“${currentSource.filename ?? currentSource.title}” is imported but not yet part of ${activeWorkspace.name}. Add it once to make its spans available to workspace intelligence.`
+                : "Create or select a workspace above, then add this imported source to make it available to workspace intelligence."}
+            </p>
+            {handoffMessage && <span className="source-handoff-message">{handoffMessage}</span>}
+          </div>
+          {activeWorkspace && (
+            <button
+              type="button"
+              data-testid="source-workspace-save-button"
+              disabled={handoffBusy || currentSourceSaved}
+              onClick={() => void addImportedSourceToWorkspace()}
+            >
+              {handoffBusy
+                ? "Adding…"
+                : currentSourceSaved
+                  ? `Saved in ${activeWorkspace.name}`
+                  : `Add to ${activeWorkspace.name}`}
+            </button>
+          )}
+        </section>
+      )}
+
+      <section className="intelligence-divider" aria-labelledby="intelligence-divider-heading">
+        <p className="section-label">WORKSPACE INTELLIGENCE</p>
+        <h2 id="intelligence-divider-heading">Inspect what the saved evidence supports</h2>
+        <p>
+          The panels below operate on sources saved in the active workspace, not merely on the last
+          source previewed in Source Studio.
+        </p>
+      </section>
+
+      <ReferenceLineagePanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
+
+      <BibliographicIdentityPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
+
+      <CitationGraphPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
+
+      <RetrievalPreviewPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
+
+      <EvidencePackPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
+
+      <RetrievalEvaluationPanel apiHealthy={apiState === "healthy"} workspace={activeWorkspace} />
+
+      <AnalysisPanel
+        apiHealthy={apiState === "healthy"}
+        workspace={activeWorkspace}
+        onAnalysisChange={setActiveAnalysis}
+      />
+
+      <GraphPanel
+        apiHealthy={apiState === "healthy"}
+        workspace={activeWorkspace}
+        analysis={activeAnalysis}
+      />
+
+      <ComparisonPanel
+        apiHealthy={apiState === "healthy"}
+        workspace={activeWorkspace}
+        analysis={activeAnalysis}
+      />
 
       <section className="next-grid" aria-label="Product capabilities">
         <article>

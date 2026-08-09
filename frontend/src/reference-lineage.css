@@ -61,34 +61,162 @@
   color: #9aa9b8;
 }
 
+.reference-explorer {
+  margin: 1rem 0;
+  padding: 0.95rem;
+  border: 1px solid rgba(123, 148, 178, 0.16);
+  border-radius: 0.9rem;
+  background: rgba(13, 24, 36, 0.78);
+}
+
+.reference-explorer-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(360px, 1.2fr);
+  gap: 1rem;
+  align-items: end;
+}
+
+.reference-explorer-heading > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.reference-explorer-heading > div:first-child span,
+.reference-explorer-result-count,
+.reference-citing-sources {
+  color: #8496aa;
+  font-size: 0.8rem;
+}
+
+.reference-explorer-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+}
+
+.reference-explorer-controls input,
+.reference-explorer-controls select {
+  min-width: 0;
+  border: 1px solid #30495c;
+  border-radius: 0.72rem;
+  padding: 0.7rem 0.8rem;
+  background: #09141d;
+  color: #e8eef7;
+  outline: none;
+}
+
+.reference-explorer-controls input:focus,
+.reference-explorer-controls select:focus {
+  border-color: #78d9c5;
+}
+
+.reference-domain-summary {
+  display: flex;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+  padding-bottom: 0.2rem;
+  overflow-x: auto;
+}
+
+.reference-domain-summary button {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 0.2rem;
+  max-width: 260px;
+  border: 1px solid rgba(123, 148, 178, 0.16);
+  border-radius: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  background: rgba(18, 31, 45, 0.82);
+  color: #c8d3dd;
+  text-align: left;
+}
+
+.reference-domain-summary button:hover {
+  border-color: rgba(120, 217, 197, 0.5);
+}
+
+.reference-domain-summary strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+
+.reference-domain-summary span {
+  color: #7f93a5;
+  font-size: 0.7rem;
+}
+
+.reference-explorer-result-count {
+  margin: 0.75rem 0 0;
+}
+
 .reference-lineage-list {
   display: grid;
   gap: 0.7rem;
 }
 
-.reference-lineage-list article {
-  padding: 0.85rem;
+.reference-target-group {
+  overflow: hidden;
   border: 1px solid rgba(123, 148, 178, 0.15);
-  border-radius: 0.8rem;
+  border-radius: 0.85rem;
   background: rgba(14, 24, 36, 0.76);
 }
 
-.reference-lineage-path {
-  display: flex;
-  gap: 0.55rem;
+.reference-target-toggle {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.75rem;
   align-items: center;
-  flex-wrap: wrap;
+  border: 0;
+  padding: 0.85rem;
+  background: transparent;
+  color: #e8eef7;
+  text-align: left;
+}
+
+.reference-target-toggle:hover {
+  background: rgba(35, 56, 72, 0.26);
+}
+
+.reference-target-heading {
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.reference-target-heading strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-target-heading small {
+  color: #8195a8;
+}
+
+.reference-expand-icon {
+  display: inline-grid;
+  width: 1.8rem;
+  height: 1.8rem;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(88, 113, 137, 0.17);
+  color: #a9bac9;
+  font-size: 1.1rem;
 }
 
 .reference-resolution {
   display: inline-block;
-  margin: 0.55rem 0 0.25rem;
+  margin: 0;
   padding: 0.2rem 0.45rem;
   border-radius: 999px;
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   background: rgba(83, 105, 131, 0.2);
+  white-space: nowrap;
 }
 
 .reference-resolution.workspace_unique {
@@ -103,12 +231,47 @@
   color: #b2bdc8;
 }
 
-.reference-target {
+.reference-target,
+.reference-citing-sources {
+  margin: 0;
+  padding: 0 0.85rem 0.7rem;
   overflow-wrap: anywhere;
+}
+
+.reference-target {
   color: #93a9c0;
 }
 
-.reference-lineage-list blockquote {
+.reference-occurrence-list {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.reference-occurrence-list article {
+  padding: 0.75rem;
+  border: 1px solid rgba(123, 148, 178, 0.13);
+  border-radius: 0.72rem;
+  background: rgba(8, 17, 26, 0.72);
+}
+
+.reference-occurrence-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: #cdd8e2;
+}
+
+.reference-occurrence-heading span {
+  color: #8195a8;
+  font-size: 0.78rem;
+}
+
+.reference-occurrence-list p {
+  color: #9cacbb;
+}
+
+.reference-occurrence-list blockquote {
   margin: 0.55rem 0;
   padding-left: 0.75rem;
   border-left: 2px solid rgba(123, 148, 178, 0.25);
@@ -117,4 +280,35 @@
 
 .reference-lineage-empty {
   color: #8496aa;
+}
+
+.reference-show-more {
+  justify-self: center;
+  border: 1px solid #315064;
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  background: #10212d;
+  color: #b8c9d6;
+  font-weight: 700;
+}
+
+@media (max-width: 840px) {
+  .reference-explorer-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .reference-explorer-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .reference-target-toggle {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .reference-resolution {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
 }

@@ -26,17 +26,21 @@ test("explicit URL reference resolves into citation topology and survives reload
     "1 explicit reference · 0 uniquely resolved · 0 ambiguous · 1 external",
     { timeout: 10_000 },
   );
+  await expect(page.getByTestId("unique-reference-target-count")).toContainText("1");
+  await expect(page.getByTestId("reference-explorer")).toContainText(
+    "1 unique target from 1 occurrence",
+  );
   await expect(page.getByTestId("citation-graph-status")).toContainText(
     "1 sources · 0 directed edges · 1 unresolved · 0 ambiguous",
     { timeout: 10_000 },
   );
   await expect(page.getByTestId("citation-edge-count")).toContainText("0");
+  await expect(page.getByTestId("citation-graph-empty-state")).toBeVisible();
   await expect(page.getByTestId("reference-lineage-guardrail")).toContainText(
     "Explicit URL ≠ endorsement, quotation, dependence, or truth",
   );
   let referenceEdge = page.getByTestId("reference-lineage-edge");
   await expect(referenceEdge).toContainText("citation-note.txt");
-  await expect(referenceEdge).toContainText("External / not ingested");
   await expect(referenceEdge).toContainText(targetUrl);
   await expect(referenceEdge).toContainText(citationSentence);
   await expect(referenceEdge).toContainText("visible_url_in_source_span_v1");
@@ -55,9 +59,11 @@ test("explicit URL reference resolves into citation topology and survives reload
   await expect(page.getByTestId("resolved-reference-count")).toContainText("1");
   referenceEdge = page.getByTestId("reference-lineage-edge");
   await expect(referenceEdge).toContainText("citation-note.txt");
-  await expect(referenceEdge).toContainText("NVIDIA Networking Research");
-  await expect(referenceEdge).toContainText("Workspace source");
-  await expect(referenceEdge).toContainText(targetUrl);
+  await expect(page.getByTestId("reference-lineage-target")).toContainText(
+    "NVIDIA Networking Research",
+  );
+  await expect(page.getByTestId("reference-lineage-target")).toContainText("Workspace source");
+  await expect(page.getByTestId("reference-lineage-target")).toContainText(targetUrl);
   await expect(referenceEdge).toContainText(citationSentence);
   await expect(referenceEdge).toContainText(/span_/);
 
@@ -69,6 +75,7 @@ test("explicit URL reference resolves into citation topology and survives reload
   await expect(page.getByTestId("citation-graph-guardrail")).toContainText(
     "Edge = explicit uniquely resolved reference, not factual support or truth",
   );
+  await expect(page.getByTestId("citation-graph-canvas")).toBeVisible();
   const citationEdge = page.getByTestId("citation-edge-card");
   await expect(citationEdge).toContainText("citation-note.txt");
   await expect(citationEdge).toContainText("NVIDIA Networking Research");
@@ -82,7 +89,7 @@ test("explicit URL reference resolves into citation topology and survives reload
     "1 explicit reference · 1 uniquely resolved · 0 ambiguous · 0 external",
     { timeout: 10_000 },
   );
-  await expect(page.getByTestId("reference-lineage-edge")).toContainText(
+  await expect(page.getByTestId("reference-lineage-target")).toContainText(
     "NVIDIA Networking Research",
   );
   await expect(page.getByTestId("citation-graph-status")).toContainText(

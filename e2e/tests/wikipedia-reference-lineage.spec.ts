@@ -37,10 +37,12 @@ test("selected Wikipedia citation preserves citing context and bibliography entr
     { timeout: 10_000 },
   );
 
+  const target = page.getByTestId("reference-lineage-target");
+  await expect(target).toContainText(targetUrl);
+  await expect(target).toContainText("External / not ingested");
+
   const edge = page.getByTestId("reference-lineage-edge");
   await expect(edge).toContainText("Nvidia");
-  await expect(edge).toContainText(targetUrl);
-  await expect(edge).toContainText("External / not ingested");
   await expect(edge).toContainText("Citation [1]");
   await expect(edge).toContainText("cite_note-fixture-history-1");
   await expect(edge).toContainText("Nvidia was founded in 1993.");
@@ -59,6 +61,7 @@ test("selected Wikipedia citation preserves citing context and bibliography entr
     "1 explicit reference · 0 uniquely resolved · 0 ambiguous · 1 external",
     { timeout: 10_000 },
   );
+  await expect(page.getByTestId("reference-lineage-target")).toContainText(targetUrl);
   await expect(page.getByTestId("reference-lineage-edge")).toContainText(
     "Reference entry · Example Research. Nvidia founding timeline. Retrieved 2026.",
   );

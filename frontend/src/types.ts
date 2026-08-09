@@ -72,6 +72,7 @@ export type WikipediaOutline = {
 };
 
 export type AnalysisStatus = "running" | "completed" | "failed";
+export type AssertionPolarity = "unknown" | "affirmed" | "negated";
 
 export type AnalysisRun = {
   run_id: string;
@@ -129,6 +130,8 @@ export type AnalysisRelation = {
   subject_entity_id: string;
   predicate: string;
   object_entity_id: string;
+  polarity: AssertionPolarity;
+  polarity_method: string;
   extraction_score: number;
   extraction_method: string;
   evidence: RelationEvidence[];
@@ -159,6 +162,8 @@ export type GraphEdge = {
   source_entity_id: string;
   target_entity_id: string;
   predicate: string;
+  polarity: AssertionPolarity;
+  polarity_method: string;
   extraction_score: number;
   extraction_method: string;
   evidence_count: number;
@@ -208,12 +213,31 @@ export type ComparisonClaim = {
   predicate: string;
   object_entity_id: string;
   object_label: string;
+  polarity: AssertionPolarity;
+  polarity_method: string;
   extraction_score: number;
   support_level: ClaimSupportLevel;
   source_count: number;
   source_ids: string[];
   evidence_count: number;
   evidence: RelationEvidence[];
+};
+
+export type ContradictionCandidate = {
+  assertion_key: string;
+  subject_entity_id: string;
+  subject_label: string;
+  predicate: string;
+  object_entity_id: string;
+  object_label: string;
+  affirmed_relation_ids: string[];
+  negated_relation_ids: string[];
+  affirmed_source_ids: string[];
+  negated_source_ids: string[];
+  source_count: number;
+  evidence_count: number;
+  affirmed_evidence: RelationEvidence[];
+  negated_evidence: RelationEvidence[];
 };
 
 export type SourceClaimProfile = {
@@ -223,6 +247,7 @@ export type SourceClaimProfile = {
   claim_count: number;
   cross_source_claim_count: number;
   single_source_claim_count: number;
+  contradiction_candidate_count: number;
 };
 
 export type SourcePairOverlap = {
@@ -239,6 +264,7 @@ export type SourceComparisonSummary = {
   claim_count: number;
   cross_source_claim_count: number;
   single_source_claim_count: number;
+  contradiction_candidate_count: number;
   pair_count: number;
 };
 
@@ -249,6 +275,7 @@ export type SourceComparison = {
   summary: SourceComparisonSummary;
   sources: SourceClaimProfile[];
   claims: ComparisonClaim[];
+  contradictions: ContradictionCandidate[];
   overlaps: SourcePairOverlap[];
   interpretation_note: string;
 };

@@ -12,7 +12,7 @@ test("analysis becomes an inspectable evidence graph with connection paths", asy
     name: "graph-evidence.txt",
     mimeType: "text/plain",
     buffer: Buffer.from(
-      "Microsoft acquired GitHub. GitHub partnered with OpenAI.",
+      "Microsoft acquired GitHub. GitHub acquired OpenAI.",
     ),
   });
   await page.getByRole("button", { name: "Analyse document" }).click();
@@ -32,14 +32,18 @@ test("analysis becomes an inspectable evidence graph with connection paths", asy
   await expect(page.getByTestId("graph-node-list")).toContainText("Microsoft");
   await expect(page.getByTestId("graph-node-list")).toContainText("GitHub");
   await expect(page.getByTestId("graph-node-list")).toContainText("OpenAI");
-  await expect(page.getByTestId("graph-edge-list")).toContainText("acquire");
-  await expect(page.getByTestId("graph-edge-list")).toContainText("partner with");
 
-  const acquisition = page
-    .getByTestId("graph-edge-list")
-    .getByRole("button")
-    .filter({ hasText: "acquire" });
-  await acquisition.click();
+  const edgeList = page.getByTestId("graph-edge-list");
+  const microsoftToGitHub = edgeList.getByRole("button", {
+    name: /Microsoft acquire GitHub/,
+  });
+  const githubToOpenAI = edgeList.getByRole("button", {
+    name: /GitHub acquire OpenAI/,
+  });
+  await expect(microsoftToGitHub).toBeVisible();
+  await expect(githubToOpenAI).toBeVisible();
+
+  await microsoftToGitHub.click();
   await expect(page.getByTestId("graph-edge-detail")).toContainText("Microsoft");
   await expect(page.getByTestId("graph-edge-detail")).toContainText("GitHub");
   await expect(page.getByTestId("graph-edge-detail")).toContainText(
@@ -57,6 +61,7 @@ test("analysis becomes an inspectable evidence graph with connection paths", asy
 
   await page.reload();
   await expect(page.getByTestId("api-status")).toHaveText("API healthy");
+  await expect(page.getByTestId("workspace-detail")).toContainText("E2E Evidence Graph");
   await expect(page.getByTestId("analysis-status")).toContainText("restored from SQLite", {
     timeout: 10_000,
   });

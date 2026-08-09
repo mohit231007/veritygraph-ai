@@ -16,15 +16,23 @@ from app.domain.source import SourceDocument, SourceType
 from app.services.comparison import build_source_comparison
 
 
-def source(source_id: str, filename: str) -> SourceDocument:
+def source(
+    source_id: str,
+    filename: str,
+    *,
+    content_hash: str | None = None,
+    url: str | None = None,
+    source_type: SourceType = SourceType.DOCUMENT,
+) -> SourceDocument:
     return SourceDocument(
         source_id=source_id,
-        source_type=SourceType.DOCUMENT,
+        source_type=source_type,
         title=filename,
-        filename=filename,
-        source_format="txt",
-        mime_type="text/plain",
-        content_hash=source_id[-1] * 64,
+        filename=filename if source_type == SourceType.DOCUMENT else None,
+        url=url,
+        source_format="txt" if source_type == SourceType.DOCUMENT else "html",
+        mime_type="text/plain" if source_type == SourceType.DOCUMENT else "text/html",
+        content_hash=content_hash or source_id[-1] * 64,
         size_bytes=10,
         metadata={},
     )
@@ -63,6 +71,7 @@ def relation(
     polarity: AssertionPolarity = AssertionPolarity.AFFIRMED,
     modality: AssertionModality = AssertionModality.ASSERTED,
     years: list[int] | None = None,
+    shared_evidence_text: str | None = None,
 ) -> Relation:
     evidence = [
         RelationEvidence(
@@ -70,7 +79,7 @@ def relation(
             relation_id=relation_id,
             source_id=source_id,
             span_id=f"span_{source_id}",
-            text=f"Evidence from {source_id}.",
+            text=shared_evidence_text or f"Evidence from {source_id}.",
             sentence_start=0,
             sentence_end=20,
         )
@@ -147,16 +156,84 @@ def test_comparison_distinguishes_exact_qualified_support() -> None:
         analysis_fixture(), source_documents=source_documents()
     )
 
-    assert comparison.comparison_version == "source-corroboration-v3-qualifiers"
+    assert comparison.comparison_version == "source-corroboration-v4-relationships"
     assert comparison.summary.cross_source_claim_count == 1
     assert comparison.summary.single_source_claim_count == 2
     assert comparison.summary.contradiction_candidate_count == 0
+    assert comparison.summary.possible_derivation_pair_count == 0
 
     shared = next(claim for claim in comparison.claims if claim.relation_id == "rel_shared")
     assert shared.support_level == ClaimSupportLevel.CROSS_SOURCE
     assert shared.polarity == AssertionPolarity.AFFIRMED
     assert shared.modality == AssertionModality.ASSERTED
     assert shared.temporal_years == []
+    assert shared.source_count == 2
+    assert shared.distinct_content_fingerprint_count == 2
+    assert shared.distinct_evidence_text_count == 2
+
+
+def test_exact_duplicate_content_and_evidence_are_review_signals_not_independence_claims() -> None:
+    analysis = analysis_fixture()
+    analysis.relations = [
+        relation(
+            "rel_shared",
+            "ent_microsoft",
+            "ent_github",
+            ["src_a", "src_b"],
+            shared_evidence_text="Microsoft acquired GitHub.",
+        )
+    ]
+    documents = {
+        "src_a": source("src_a", "copy-a.txt", content_hash="f" * 64),
+        "src_b": source("src_b", "copy-b.txt", content_hash="f" * 64),
+    }
+
+    comparison = build_source_comparison(analysis, source_documents=documents)
+
+    claim = comparison.claims[0]
+    assert claim.source_count == 2
+    assert claim.distinct_content_fingerprint_count == 1
+    assert claim.distinct_evidence_text_count == 1
+
+    signal = comparison.source_relationships[0]
+    assert signal.exact_content_fingerprint_match is True
+    assert signal.exact_evidence_text_overlap_count == 1
+    assert signal.exact_evidence_relation_ids == ["rel_shared"]
+    assert signal.possible_derivation_signal is True
+    assert "matching persisted content fingerprint" in signal.review_reasons
+    assert comparison.summary.exact_content_match_pair_count == 1
+    assert comparison.summary.exact_evidence_overlap_pair_count == 1
+    assert comparison.summary.possible_derivation_pair_count == 1
+    assert "does not prove" in comparison.interpretation_note
+
+
+def test_same_origin_host_is_context_signal_but_not_proof_of_derivation() -> None:
+    analysis = analysis_fixture()
+    documents = {
+        "src_a": source(
+            "src_a",
+            "page-a",
+            url="https://www.example.com/reports/a",
+            source_type=SourceType.PUBLIC_URL,
+        ),
+        "src_b": source(
+            "src_b",
+            "page-b",
+            url="https://example.com/reports/b",
+            source_type=SourceType.PUBLIC_URL,
+        ),
+    }
+
+    comparison = build_source_comparison(analysis, source_documents=documents)
+
+    signal = comparison.source_relationships[0]
+    assert signal.left_origin_host == "example.com"
+    assert signal.right_origin_host == "example.com"
+    assert signal.same_origin_host is True
+    assert signal.possible_derivation_signal is False
+    assert signal.review_reasons == ["same origin host: example.com"]
+    assert comparison.summary.same_origin_pair_count == 1
+    assert comparison.summary.possible_derivation_pair_count == 0
 
 
 def test_same_year_asserted_opposing_polarity_creates_candidate() -> None:
@@ -197,7 +274,6 @@ def test_disjoint_years_do_not_create_false_contradiction() -> None:
     ]
 
     comparison = build_source_comparison(analysis, source_documents=source_documents())
-
     assert comparison.summary.contradiction_candidate_count == 0
     assert comparison.contradictions == []
 
@@ -279,3 +355,4 @@ def test_comparison_profiles_include_sources_with_zero_claims() -> None:
     assert empty.contradiction_candidate_count == 0
     assert comparison.summary.source_count == 3
     assert comparison.summary.pair_count == 3
+    assert len(comparison.source_relationships) == 3

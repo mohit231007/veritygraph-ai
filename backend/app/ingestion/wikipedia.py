@@ -113,7 +113,10 @@ def _reference_catalog(
 
     soup = BeautifulSoup(html, "html.parser")
     catalog: dict[str, list[WikipediaFetchedReference]] = {}
-    for item in soup.find_all("li", id=lambda value: bool(value and value.startswith("cite_note-"))):
+    for item in soup.find_all(
+        "li",
+        id=lambda value: bool(value and value.startswith("cite_note-")),
+    ):
         marker = str(item.get("id"))
         reference_text = _reference_entry_text(item) or None
         entries: list[WikipediaFetchedReference] = []

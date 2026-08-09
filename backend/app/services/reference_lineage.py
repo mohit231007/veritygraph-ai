@@ -13,16 +13,18 @@ from app.domain.workspace import WorkspaceDetail
 from app.repositories.source_repository import SourceRepository
 from app.services.source_references import normalize_reference_url
 
-LINEAGE_VERSION = "explicit-reference-lineage-v2-format-links"
+LINEAGE_VERSION = "explicit-reference-lineage-v3-wikipedia-citations"
 INTERPRETATION_NOTE = (
     "Reference lineage contains only explicit HTTP(S) targets retained during ingestion, "
-    "including visible URLs and supported format-level link metadata. A page or paragraph "
-    "locator identifies where the link was observed; it does not mean the target URL itself "
-    "was present in extracted NLP text. A workspace resolution means the normalized target "
-    "URL matches persisted URL metadata for one or more sources currently in this workspace; "
-    "it does not prove quotation, endorsement, factual dependence, or direction of copying. "
-    "An external target may simply not have been ingested. Multiple workspace sources with "
-    "the same URL remain ambiguous rather than being collapsed arbitrarily."
+    "including visible URLs, supported format-level links, and selected Wikipedia citation "
+    "markers whose external targets were preserved before article prose normalization. "
+    "Citing context and bibliography/reference-entry text are kept separate. A page, paragraph, "
+    "or citation marker identifies where the reference was observed; it does not mean the "
+    "target URL itself was present in extracted NLP text. A workspace resolution means the "
+    "normalized target URL matches persisted URL metadata for one or more sources currently "
+    "in this workspace; it does not prove quotation, endorsement, factual dependence, or "
+    "direction of copying. An external target may simply not have been ingested. Multiple "
+    "workspace sources with the same URL remain ambiguous rather than being collapsed arbitrarily."
 )
 
 
@@ -96,6 +98,9 @@ def build_workspace_reference_lineage(
                     target_labels=target_labels,
                     anchor_text=reference.anchor_text,
                     context_text=reference.context_text,
+                    reference_text=reference.reference_text,
+                    citation_label=reference.citation_label,
+                    citation_marker=reference.citation_marker,
                     extraction_method=reference.extraction_method,
                     self_reference=self_reference,
                 )
@@ -106,6 +111,7 @@ def build_workspace_reference_lineage(
             edge.source_label.casefold(),
             edge.page_number or 0,
             edge.paragraph_number or 0,
+            edge.citation_marker or "",
             edge.normalized_target_url,
             edge.span_id or "",
             edge.reference_id,

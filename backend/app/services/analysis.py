@@ -8,6 +8,7 @@ from uuid import uuid4
 from app.core.config import get_settings
 from app.domain.analysis import AnalysisRun, AnalysisStatus, WorkspaceAnalysis
 from app.nlp.engine import SpacyNlpEngine
+from app.nlp.resolver import DeterministicEntityResolver
 from app.repositories.analysis_repository import AnalysisRepository
 from app.repositories.source_repository import SourceRepository
 from app.repositories.workspace_repository import WorkspaceRepository
@@ -42,7 +43,7 @@ def run_workspace_analysis(
     analysis_repository: AnalysisRepository,
     engine: SpacyNlpEngine,
 ) -> WorkspaceAnalysis:
-    """Run the local NLP baseline over every evidence span in a workspace."""
+    """Run extraction plus conservative local entity resolution over a workspace."""
 
     workspace = workspace_repository.get(workspace_id)
     if workspace is None:
@@ -58,6 +59,7 @@ def run_workspace_analysis(
     if not bundles:
         raise EmptyWorkspaceError("Workspace has no readable persisted sources.")
 
+    resolver = DeterministicEntityResolver()
     run_id = f"run_{uuid4().hex}"
     started_at = datetime.now(UTC)
     started_timer = perf_counter()
@@ -70,6 +72,7 @@ def run_workspace_analysis(
         model_name=engine.model_name,
         model_version=engine.model_version,
         extractor_version=engine.EXTRACTOR_VERSION,
+        resolver_version=resolver.VERSION,
         started_at=started_at,
         source_count=len(bundles),
         span_count=span_count,
@@ -78,6 +81,7 @@ def run_workspace_analysis(
 
     try:
         entities, relations = engine.extract(run_id=run_id, bundles=bundles)
+        entities, relations = resolver.resolve(entities=entities, relations=relations)
     except Exception as exc:
         completed_at = datetime.now(UTC)
         run.status = AnalysisStatus.FAILED

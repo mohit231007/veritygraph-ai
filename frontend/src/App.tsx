@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import AnalysisPanel from "./components/AnalysisPanel";
+import ComparisonPanel from "./components/ComparisonPanel";
 import DocumentWorkspace from "./components/DocumentWorkspace";
 import GraphPanel from "./components/GraphPanel";
 import PublicUrlWorkspace from "./components/PublicUrlWorkspace";
@@ -93,6 +94,12 @@ export default function App() {
         analysis={activeAnalysis}
       />
 
+      <ComparisonPanel
+        apiHealthy={apiState === "healthy"}
+        workspace={activeWorkspace}
+        analysis={activeAnalysis}
+      />
+
       <section className="source-studio" aria-labelledby="source-studio-heading">
         <div className="studio-heading">
           <div>
@@ -154,17 +161,17 @@ export default function App() {
         <article>
           <span>04</span>
           <h3>Analyse the workspace</h3>
-          <p>Local NER and relationship extraction retain exact evidence lineage per immutable run.</p>
+          <p>Local extraction and conservative entity resolution retain exact evidence lineage.</p>
         </article>
         <article>
           <span>05</span>
-          <h3>Explore the evidence graph</h3>
-          <p>PageRank, centrality, communities and connection paths are projected from the run.</p>
+          <h3>Explore and compare</h3>
+          <p>Graph analytics and cross-source corroboration are projected from the immutable run.</p>
         </article>
         <article>
           <span>06</span>
           <h3>Verify and improve</h3>
-          <p>Claim inspection, response ratings, frozen-evidence revisions and version history.</p>
+          <p>Contradiction-aware evidence, claim review and versioned response improvement come next.</p>
         </article>
       </section>
     </main>

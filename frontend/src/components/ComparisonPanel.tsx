@@ -61,7 +61,7 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
     }
 
     const controller = new AbortController();
-    setMessage("Comparing qualified assertions across this run's exact sources…");
+    setMessage("Comparing qualified assertions and source relationship signals…");
 
     async function loadComparison() {
       try {
@@ -74,7 +74,7 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
         setSelectedClaim(payload.claims[0] ?? null);
         setFilter("all");
         setMessage(
-          `Comparison ready · ${payload.summary.cross_source_claim_count} cross-source · ${payload.summary.single_source_claim_count} single-source · ${payload.summary.contradiction_candidate_count} contradiction candidate${payload.summary.contradiction_candidate_count === 1 ? "" : "s"}`,
+          `Comparison ready · ${payload.summary.cross_source_claim_count} cross-source · ${payload.summary.single_source_claim_count} single-source · ${payload.summary.contradiction_candidate_count} contradiction candidate${payload.summary.contradiction_candidate_count === 1 ? "" : "s"} · ${payload.summary.possible_derivation_pair_count} relationship review signal${payload.summary.possible_derivation_pair_count === 1 ? "" : "s"}`,
         );
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -91,7 +91,7 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
   return (
     <section className="comparison-panel" aria-labelledby="comparison-heading" data-testid="comparison-panel">
       <div className="comparison-heading">
-        <div><p className="section-label">SOURCE COMPARISON</p><h2 id="comparison-heading">Corroboration and scoped evidence conflict</h2></div>
+        <div><p className="section-label">SOURCE COMPARISON</p><h2 id="comparison-heading">Corroboration, conflict, and source relationship signals</h2></div>
         {comparison && <span className="comparison-version">{comparison.comparison_version}</span>}
       </div>
       <p className="comparison-status" aria-live="polite" data-testid="comparison-status">{message}</p>
@@ -104,10 +104,11 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
             <article><span>Cross-source</span><strong>{comparison.summary.cross_source_claim_count}</strong></article>
             <article><span>Single-source</span><strong>{comparison.summary.single_source_claim_count}</strong></article>
             <article data-testid="contradiction-count"><span>Conflict candidates</span><strong>{comparison.summary.contradiction_candidate_count}</strong></article>
+            <article data-testid="relationship-signal-count"><span>Relationship signals</span><strong>{comparison.summary.possible_derivation_pair_count}</strong></article>
           </div>
 
           <aside className="comparison-guardrail" data-testid="comparison-guardrail">
-            <strong>Silence, modality, or different time scope ≠ contradiction.</strong>
+            <strong>Source IDs ≠ independent reports. Silence, modality, or different time scope ≠ contradiction.</strong>
             <p>{comparison.interpretation_note}</p>
           </aside>
 
@@ -167,6 +168,12 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
                   <p className="comparison-kicker">{selectedClaim.polarity.toUpperCase()} · {selectedClaim.modality.toUpperCase()} · {yearLabel(selectedClaim.temporal_years)} · {selectedClaim.support_level === "cross_source" ? "CROSS-SOURCE SUPPORT" : "SINGLE-SOURCE EVIDENCE"}</p>
                   <h3>{selectedClaim.subject_label} <span>{assertionVerb(selectedClaim)}</span> {selectedClaim.object_label}</h3>
                   <p>{selectedClaim.source_count} source{selectedClaim.source_count === 1 ? "" : "s"} · {selectedClaim.evidence_count} evidence · rule score {Math.round(selectedClaim.extraction_score * 100)}</p>
+                  <div className="claim-diversity" data-testid="claim-diversity">
+                    <span>{selectedClaim.distinct_content_count} distinct content fingerprint{selectedClaim.distinct_content_count === 1 ? "" : "s"}</span>
+                    <span>{selectedClaim.distinct_evidence_text_count} distinct evidence text{selectedClaim.distinct_evidence_text_count === 1 ? "" : "s"}</span>
+                    {selectedClaim.content_duplicate_signal && <strong>Exact content duplicate signal</strong>}
+                    {selectedClaim.repeated_evidence_text_signal && <strong>Repeated supporting text signal</strong>}
+                  </div>
                   <div className="comparison-evidence-list">{selectedClaim.evidence.map((evidence) => <blockquote key={evidence.evidence_id}><p>“{evidence.text}”</p><footer>{sourceLabels.get(evidence.source_id) ?? evidence.source_id} · {evidence.span_id}</footer></blockquote>)}</div>
                 </div>
               )}
@@ -174,9 +181,21 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
           </div>
 
           <section className="overlap-section" aria-labelledby="overlap-heading">
-            <div className="comparison-subheading"><div><h3 id="overlap-heading">Pairwise claim overlap</h3><span>Exact qualified relation IDs</span></div></div>
+            <div className="comparison-subheading"><div><h3 id="overlap-heading">Pairwise source relationship review</h3><span>Qualified claim overlap plus deterministic content/evidence/origin signals</span></div></div>
             <div className="overlap-list" data-testid="overlap-list">
-              {comparison.overlaps.map((overlap) => <article key={`${overlap.left_source_id}-${overlap.right_source_id}`}><div><strong>{sourceLabels.get(overlap.left_source_id) ?? overlap.left_source_id}</strong><span>↔</span><strong>{sourceLabels.get(overlap.right_source_id) ?? overlap.right_source_id}</strong></div><p>{overlap.shared_claim_count} shared / {overlap.union_claim_count} union · {percent(overlap.jaccard_similarity)} overlap</p></article>)}
+              {comparison.overlaps.map((overlap) => (
+                <article key={`${overlap.left_source_id}-${overlap.right_source_id}`} data-testid="source-pair-overlap" className={overlap.possible_derivation_signal ? "relationship-signal" : ""}>
+                  <div><strong>{sourceLabels.get(overlap.left_source_id) ?? overlap.left_source_id}</strong><span>↔</span><strong>{sourceLabels.get(overlap.right_source_id) ?? overlap.right_source_id}</strong></div>
+                  <p>{overlap.shared_claim_count} shared / {overlap.union_claim_count} union · {percent(overlap.jaccard_similarity)} overlap</p>
+                  <div className="relationship-signal-list">
+                    {overlap.same_content_hash && <span>Exact content fingerprint match</span>}
+                    {overlap.exact_shared_evidence_text_count > 0 && <span>{overlap.exact_shared_evidence_text_count} exact shared supporting text{overlap.exact_shared_evidence_text_count === 1 ? "" : "s"}</span>}
+                    {overlap.same_origin_host && <span>Shared origin host · {overlap.shared_origin_host}</span>}
+                    {overlap.possible_derivation_signal ? <strong>Relationship review signal · not proof of copying</strong> : <em>No derivation signal detected · independence not proven</em>}
+                  </div>
+                  {overlap.exact_shared_evidence_texts.map((text) => <blockquote key={text}>“{text}”</blockquote>)}
+                </article>
+              ))}
               {comparison.overlaps.length === 0 && <p className="comparison-empty">Add at least two sources to compute pairwise overlap.</p>}
             </div>
           </section>

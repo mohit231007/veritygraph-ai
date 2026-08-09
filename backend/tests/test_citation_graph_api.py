@@ -30,7 +30,7 @@ def clear_citation_graph_state() -> None:
 
 
 def _document(source_id: str, title: str, url: str | None = None) -> SourceDocument:
-    material = f"{source_id}|{title}|{url or ''}".encode("utf-8")
+    material = f"{source_id}|{title}|{url or ''}".encode()
     return SourceDocument(
         source_id=source_id,
         source_type=SourceType.PUBLIC_URL if url else SourceType.DOCUMENT,

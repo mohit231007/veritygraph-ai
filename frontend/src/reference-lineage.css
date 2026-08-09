@@ -61,6 +61,11 @@
   color: #9aa9b8;
 }
 
+.reference-cross-source-note {
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(103, 190, 168, 0.16);
+}
+
 .reference-explorer {
   margin: 1rem 0;
   padding: 0.95rem;
@@ -71,7 +76,7 @@
 
 .reference-explorer-heading {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(360px, 1.2fr);
+  grid-template-columns: minmax(0, 0.7fr) minmax(500px, 1.3fr);
   gap: 1rem;
   align-items: end;
 }
@@ -90,7 +95,7 @@
 
 .reference-explorer-controls {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 0.65rem;
 }
 
@@ -166,7 +171,7 @@
 .reference-target-toggle {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 0.75rem;
   align-items: center;
   border: 0;
@@ -207,7 +212,8 @@
   font-size: 1.1rem;
 }
 
-.reference-resolution {
+.reference-resolution,
+.reference-cross-source-badge {
   display: inline-block;
   margin: 0;
   padding: 0.2rem 0.45rem;
@@ -215,8 +221,17 @@
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  background: rgba(83, 105, 131, 0.2);
   white-space: nowrap;
+}
+
+.reference-resolution {
+  background: rgba(83, 105, 131, 0.2);
+}
+
+.reference-cross-source-badge {
+  background: rgba(83, 151, 133, 0.18);
+  color: #9dd9c9;
+  font-weight: 700;
 }
 
 .reference-resolution.workspace_unique {
@@ -292,7 +307,7 @@
   font-weight: 700;
 }
 
-@media (max-width: 840px) {
+@media (max-width: 980px) {
   .reference-explorer-heading {
     grid-template-columns: 1fr;
   }
@@ -302,12 +317,13 @@
   }
 }
 
-@media (max-width: 620px) {
+@media (max-width: 720px) {
   .reference-target-toggle {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .reference-resolution {
+  .reference-resolution,
+  .reference-cross-source-badge {
     grid-column: 1 / -1;
     justify-self: start;
   }

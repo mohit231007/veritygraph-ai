@@ -1,0 +1,73 @@
+services:
+  backend:
+    image: veritygraph-backend:0.9.0
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      VERITYGRAPH_ENV: production
+      VERITYGRAPH_FRONTEND_ORIGIN: https://${VERITYGRAPH_DOMAIN:?set VERITYGRAPH_DOMAIN}
+      VERITYGRAPH_DATABASE_PATH: /data/veritygraph.db
+      VERITYGRAPH_WIKIPEDIA_PROVIDER: ${VERITYGRAPH_WIKIPEDIA_PROVIDER:-live}
+      VERITYGRAPH_WEB_PROVIDER: ${VERITYGRAPH_WEB_PROVIDER:-live}
+    volumes:
+      - veritygraph_data:/data
+    expose:
+      - "8000"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health', timeout=3)",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    expose:
+      - "80"
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      frontend:
+        condition: service_started
+    environment:
+      VERITYGRAPH_DOMAIN: ${VERITYGRAPH_DOMAIN:?set VERITYGRAPH_DOMAIN}
+      VERITYGRAPH_AUTH_USER: ${VERITYGRAPH_AUTH_USER:-veritygraph}
+      VERITYGRAPH_AUTH_PASSWORD_HASH: ${VERITYGRAPH_AUTH_PASSWORD_HASH:-unused}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ${VERITYGRAPH_CADDYFILE:-./deploy/Caddyfile}:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+  backup:
+    image: veritygraph-backend:0.9.0
+    profiles: ["ops"]
+    user: "0:0"
+    volumes:
+      - veritygraph_data:/data
+      - ./backups:/backups
+    entrypoint: ["python", "scripts/sqlite_backup.py"]
+
+volumes:
+  veritygraph_data:
+  caddy_data:
+  caddy_config:

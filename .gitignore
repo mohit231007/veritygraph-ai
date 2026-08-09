@@ -19,12 +19,15 @@ e2e/playwright-report/
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # Application data
 .veritygraph/
 data/
 uploads/
 artifacts/
+backups/*
+!backups/.gitkeep
 
 # IDE / OS
 .vscode/

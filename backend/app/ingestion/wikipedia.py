@@ -66,11 +66,11 @@ def _node_text_without_reference_markers(node: Tag) -> str:
         return ""
     if node.name == "tr":
         cells = [
-            _normalize_text(cell.get_text(" ", strip=True))
+            _normalize_reference_text(cell.get_text(" ", strip=True))
             for cell in root.find_all(["th", "td"])
         ]
         return " | ".join(cell for cell in cells if cell)
-    return _normalize_text(root.get_text(" ", strip=True))
+    return _normalize_reference_text(root.get_text(" ", strip=True))
 
 
 def _paragraphs_from_html(html: str) -> list[str]:

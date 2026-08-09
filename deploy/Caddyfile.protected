@@ -1,0 +1,22 @@
+{$VERITYGRAPH_DOMAIN} {
+  encode zstd gzip
+
+  basic_auth {
+    {$VERITYGRAPH_AUTH_USER} {$VERITYGRAPH_AUTH_PASSWORD_HASH}
+  }
+
+  header {
+    -Server
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "SAMEORIGIN"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  }
+
+  reverse_proxy frontend:80
+
+  log {
+    output stdout
+    format console
+  }
+}

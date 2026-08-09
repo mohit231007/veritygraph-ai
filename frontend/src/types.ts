@@ -73,6 +73,7 @@ export type WikipediaOutline = {
 
 export type AnalysisStatus = "running" | "completed" | "failed";
 export type AssertionPolarity = "unknown" | "affirmed" | "negated";
+export type AssertionModality = "unknown" | "asserted" | "modal";
 
 export type AnalysisRun = {
   run_id: string;
@@ -132,6 +133,10 @@ export type AnalysisRelation = {
   object_entity_id: string;
   polarity: AssertionPolarity;
   polarity_method: string;
+  modality: AssertionModality;
+  modality_method: string;
+  temporal_years: number[];
+  temporal_method: string;
   extraction_score: number;
   extraction_method: string;
   evidence: RelationEvidence[];
@@ -164,6 +169,10 @@ export type GraphEdge = {
   predicate: string;
   polarity: AssertionPolarity;
   polarity_method: string;
+  modality: AssertionModality;
+  modality_method: string;
+  temporal_years: number[];
+  temporal_method: string;
   extraction_score: number;
   extraction_method: string;
   evidence_count: number;
@@ -215,6 +224,10 @@ export type ComparisonClaim = {
   object_label: string;
   polarity: AssertionPolarity;
   polarity_method: string;
+  modality: AssertionModality;
+  modality_method: string;
+  temporal_years: number[];
+  temporal_method: string;
   extraction_score: number;
   support_level: ClaimSupportLevel;
   source_count: number;
@@ -230,6 +243,7 @@ export type ContradictionCandidate = {
   predicate: string;
   object_entity_id: string;
   object_label: string;
+  temporal_years: number[];
   affirmed_relation_ids: string[];
   negated_relation_ids: string[];
   affirmed_source_ids: string[];

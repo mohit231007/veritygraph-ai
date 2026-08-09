@@ -4,6 +4,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from app.domain.source import BibliographicIdentifierKind, IdentifierObservationRole
+
 
 class ReferenceResolution(StrEnum):
     EXTERNAL = "external"
@@ -46,4 +48,47 @@ class WorkspaceReferenceLineage(BaseModel):
     lineage_version: str
     summary: ReferenceLineageSummary
     references: list[ReferenceLineageEdge]
+    interpretation_note: str
+
+
+class IdentifierMatchResolution(StrEnum):
+    NO_WORKSPACE_MATCH = "no_workspace_match"
+    WORKSPACE_UNIQUE = "workspace_unique"
+    WORKSPACE_AMBIGUOUS = "workspace_ambiguous"
+
+
+class IdentifierLineageObservation(BaseModel):
+    identifier_id: str
+    source_id: str
+    source_label: str
+    kind: BibliographicIdentifierKind
+    raw_value: str
+    normalized_value: str
+    role: IdentifierObservationRole
+    version: int | None = Field(default=None, ge=1)
+    span_id: str | None = None
+    reference_id: str | None = None
+    page_number: int | None = Field(default=None, ge=1)
+    paragraph_number: int | None = Field(default=None, ge=1)
+    resolution: IdentifierMatchResolution
+    matching_source_ids: list[str] = Field(default_factory=list)
+    matching_labels: list[str] = Field(default_factory=list)
+    context_text: str | None = None
+    extraction_method: str
+
+
+class IdentifierLineageSummary(BaseModel):
+    source_count: int = Field(ge=0)
+    observation_count: int = Field(ge=0)
+    unique_identifier_count: int = Field(ge=0)
+    matched_observation_count: int = Field(ge=0)
+    ambiguous_observation_count: int = Field(ge=0)
+    reference_linked_observation_count: int = Field(ge=0)
+
+
+class WorkspaceIdentifierLineage(BaseModel):
+    workspace_id: str
+    lineage_version: str
+    summary: IdentifierLineageSummary
+    identifiers: list[IdentifierLineageObservation]
     interpretation_note: str

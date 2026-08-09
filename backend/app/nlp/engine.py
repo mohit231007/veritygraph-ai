@@ -12,6 +12,7 @@ from spacy.language import Language
 from spacy.tokens import Span, Token
 
 from app.domain.analysis import (
+    AssertionModality,
     AssertionPolarity,
     Entity,
     EntityMention,
@@ -36,6 +37,8 @@ DEFAULT_ENTITY_LABELS = {
 SUBJECT_DEPS = {"nsubj", "nsubjpass", "csubj", "csubjpass"}
 PASSIVE_SUBJECT_DEPS = {"nsubjpass", "csubjpass"}
 DIRECT_OBJECT_DEPS = {"dobj", "obj", "attr", "oprd", "dative"}
+MODAL_AUXILIARIES = {"can", "could", "may", "might", "must", "shall", "should", "will", "would"}
+YEAR_PATTERN = re.compile(r"(?<!\d)(1\d{3}|20\d{2}|21\d{2})(?!\d)")
 
 
 @dataclass(slots=True)
@@ -79,6 +82,23 @@ def _assertion_polarity(root: Token) -> tuple[AssertionPolarity, str]:
     return AssertionPolarity.AFFIRMED, "dependency_no_root_negation_v1"
 
 
+def _assertion_modality(root: Token) -> tuple[AssertionModality, str]:
+    """Classify direct modal/future auxiliaries without broader factuality inference."""
+
+    auxiliaries = {
+        (child.lemma_.strip().lower() or child.text.strip().lower())
+        for child in root.children
+        if child.dep_ in {"aux", "auxpass"}
+    }
+    if auxiliaries & MODAL_AUXILIARIES:
+        return AssertionModality.MODAL, "dependency_modal_auxiliary_v1"
+    return AssertionModality.ASSERTED, "dependency_no_modal_auxiliary_v1"
+
+
+def _temporal_years(sentence: Span) -> list[int]:
+    return sorted({int(value) for value in YEAR_PATTERN.findall(sentence.text)})
+
+
 def _sentence_evidence(
     *,
     relation_id: str,
@@ -101,12 +121,12 @@ class SpacyNlpEngine:
 
     Relation scores are transparent extraction-rule scores. They are not calibrated
     probabilities and must not be presented to users as factual confidence.
-    Assertion polarity is limited to explicit dependency-root negation; it is not
-    a general natural-language-inference or factuality model.
+    Polarity, modality, and year qualifiers are conservative deterministic signals,
+    not general natural-language-inference or factuality judgements.
     """
 
     PIPELINE_VERSION = "spacy-baseline-v1"
-    EXTRACTOR_VERSION = "dependency-relations-v2-polarity"
+    EXTRACTOR_VERSION = "dependency-relations-v3-qualifiers"
 
     def __init__(
         self,
@@ -202,7 +222,15 @@ class SpacyNlpEngine:
         span_documents: list[SpanDocument],
         mention_index: dict[tuple[str, int, int], str],
     ) -> list[Relation]:
-        aggregated: dict[tuple[str, str, str, AssertionPolarity], Relation] = {}
+        relation_key = tuple[
+            str,
+            str,
+            str,
+            AssertionPolarity,
+            AssertionModality,
+            tuple[int, ...],
+        ]
+        aggregated: dict[relation_key, Relation] = {}
         evidence_keys: dict[str, set[tuple[str, int, int]]] = defaultdict(set)
 
         for item in span_documents:
@@ -226,6 +254,8 @@ class SpacyNlpEngine:
                 }
                 root = sentence.root
                 polarity, polarity_method = _assertion_polarity(root)
+                modality, modality_method = _assertion_modality(root)
+                temporal_years = _temporal_years(sentence)
                 subjects = [
                     ent
                     for ent in sentence_entities
@@ -263,6 +293,9 @@ class SpacyNlpEngine:
                             object_id=entity_id_by_span[(obj.start_char, obj.end_char)],
                             polarity=polarity,
                             polarity_method=polarity_method,
+                            modality=modality,
+                            modality_method=modality_method,
+                            temporal_years=temporal_years,
                             extraction_score=0.92,
                             extraction_method="dependency_subject_object",
                         )
@@ -281,6 +314,9 @@ class SpacyNlpEngine:
                             object_id=entity_id_by_span[(obj.start_char, obj.end_char)],
                             polarity=polarity,
                             polarity_method=polarity_method,
+                            modality=modality,
+                            modality_method=modality_method,
+                            temporal_years=temporal_years,
                             extraction_score=0.84,
                             extraction_method="dependency_subject_preposition_object",
                         )
@@ -305,6 +341,9 @@ class SpacyNlpEngine:
                             ],
                             polarity=polarity,
                             polarity_method=polarity_method,
+                            modality=modality,
+                            modality_method=modality_method,
+                            temporal_years=temporal_years,
                             extraction_score=0.90,
                             extraction_method="dependency_passive_agent",
                         )
@@ -315,6 +354,8 @@ class SpacyNlpEngine:
                 -relation.extraction_score,
                 relation.predicate,
                 relation.polarity.value,
+                relation.modality.value,
+                tuple(relation.temporal_years),
             )
         )
         return relations
@@ -322,7 +363,17 @@ class SpacyNlpEngine:
     @staticmethod
     def _add_relation(
         *,
-        aggregated: dict[tuple[str, str, str, AssertionPolarity], Relation],
+        aggregated: dict[
+            tuple[
+                str,
+                str,
+                str,
+                AssertionPolarity,
+                AssertionModality,
+                tuple[int, ...],
+            ],
+            Relation,
+        ],
         evidence_keys: dict[str, set[tuple[str, int, int]]],
         run_id: str,
         source_span: SourceSpan,
@@ -332,12 +383,22 @@ class SpacyNlpEngine:
         object_id: str | None,
         polarity: AssertionPolarity,
         polarity_method: str,
+        modality: AssertionModality,
+        modality_method: str,
+        temporal_years: list[int],
         extraction_score: float,
         extraction_method: str,
     ) -> None:
         if not subject_id or not object_id or subject_id == object_id or not predicate:
             return
-        key = (subject_id, predicate, object_id, polarity)
+        key = (
+            subject_id,
+            predicate,
+            object_id,
+            polarity,
+            modality,
+            tuple(temporal_years),
+        )
         relation = aggregated.get(key)
         if relation is None:
             relation = Relation(
@@ -348,6 +409,10 @@ class SpacyNlpEngine:
                 object_entity_id=object_id,
                 polarity=polarity,
                 polarity_method=polarity_method,
+                modality=modality,
+                modality_method=modality_method,
+                temporal_years=temporal_years,
+                temporal_method="sentence_year_regex_v1",
                 extraction_score=extraction_score,
                 extraction_method=extraction_method,
                 evidence=[],

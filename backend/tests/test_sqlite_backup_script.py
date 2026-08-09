@@ -40,9 +40,11 @@ def test_sqlite_backup_and_restore_round_trip(tmp_path: Path) -> None:
     assert backup.is_file()
     assert _value(backup) == "persistent evidence"
 
-    with sqlite3.connect(source) as connection:
-        connection.execute("UPDATE sample SET value = ?", ("changed after backup",))
-        connection.commit()
+    restored.write_bytes(b"stale destination")
+    stale_wal = Path(f"{restored}-wal")
+    stale_shm = Path(f"{restored}-shm")
+    stale_wal.write_bytes(b"stale wal")
+    stale_shm.write_bytes(b"stale shm")
 
     subprocess.run(
         [
@@ -59,3 +61,5 @@ def test_sqlite_backup_and_restore_round_trip(tmp_path: Path) -> None:
         text=True,
     )
     assert _value(restored) == "persistent evidence"
+    assert not stale_wal.exists()
+    assert not stale_shm.exists()

@@ -4,7 +4,7 @@ import re
 import unicodedata
 from collections import defaultdict
 
-from app.domain.analysis import Entity, EntityMention, Relation, RelationEvidence
+from app.domain.analysis import Entity, Relation, RelationEvidence
 
 CORPORATE_SUFFIXES = {
     "ag",

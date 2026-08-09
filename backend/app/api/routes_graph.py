@@ -5,7 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.domain.graph import EvidenceGraph, GraphPath
 from app.repositories.analysis_repository import AnalysisRepository, get_analysis_repository
 from app.repositories.workspace_repository import WorkspaceRepository, get_workspace_repository
-from app.services.graph import GraphPathNotFoundError, build_evidence_graph, shortest_connection_path
+from app.services.graph import (
+    GraphPathNotFoundError,
+    build_evidence_graph,
+    shortest_connection_path,
+)
 
 router = APIRouter(tags=["graph"])
 

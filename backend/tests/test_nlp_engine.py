@@ -1,4 +1,4 @@
-from app.domain.analysis import AssertionPolarity
+from app.domain.analysis import AssertionModality, AssertionPolarity
 from app.domain.source import SourceBundle, SourceDocument, SourceSpan, SourceType
 from app.nlp.engine import SpacyNlpEngine
 
@@ -35,7 +35,7 @@ def entity_by_name(entities, name: str):
     )
 
 
-def test_spacy_engine_extracts_active_relation_with_exact_evidence() -> None:
+def test_spacy_engine_extracts_active_relation_with_exact_qualifiers_and_evidence() -> None:
     text = "Microsoft acquired GitHub in 2018."
     engine = SpacyNlpEngine()
 
@@ -55,9 +55,11 @@ def test_spacy_engine_extracts_active_relation_with_exact_evidence() -> None:
     )
 
     assert relation.polarity == AssertionPolarity.AFFIRMED
-    assert relation.polarity_method == "dependency_no_root_negation_v1"
+    assert relation.modality == AssertionModality.ASSERTED
+    assert relation.modality_method == "dependency_no_modal_auxiliary_v1"
+    assert relation.temporal_years == [2018]
+    assert relation.temporal_method == "sentence_year_regex_v1"
     assert relation.extraction_score == 0.92
-    assert relation.extraction_method == "dependency_subject_object"
     assert relation.evidence[0].span_id == "span_active"
     assert relation.evidence[0].text == text
 
@@ -82,8 +84,9 @@ def test_spacy_engine_normalizes_passive_voice_to_semantic_direction() -> None:
     )
 
     assert relation.polarity == AssertionPolarity.AFFIRMED
+    assert relation.modality == AssertionModality.ASSERTED
+    assert relation.temporal_years == [2018]
     assert relation.extraction_method == "dependency_passive_agent"
-    assert relation.extraction_score == 0.90
 
 
 def test_spacy_engine_marks_explicit_root_negation_without_rewriting_predicate() -> None:
@@ -106,19 +109,44 @@ def test_spacy_engine_marks_explicit_root_negation_without_rewriting_predicate()
     )
 
     assert relation.polarity == AssertionPolarity.NEGATED
-    assert relation.polarity_method == "dependency_root_negation_v1"
+    assert relation.modality == AssertionModality.ASSERTED
     assert relation.evidence[0].text == text
 
 
-def test_spacy_engine_keeps_affirmed_and_negated_assertions_separate() -> None:
+def test_spacy_engine_marks_modal_or_future_assertion_without_treating_it_as_asserted() -> None:
+    text = "Microsoft may acquire GitHub in 2027."
+    engine = SpacyNlpEngine()
+
+    entities, relations = engine.extract(
+        run_id="run_modal",
+        bundles=[bundle("src_modal", "span_modal", text)],
+    )
+
+    microsoft = entity_by_name(entities, "Microsoft")
+    github = entity_by_name(entities, "GitHub")
+    relation = next(
+        item
+        for item in relations
+        if item.subject_entity_id == microsoft.entity_id
+        and item.object_entity_id == github.entity_id
+        and item.predicate == "acquire"
+    )
+
+    assert relation.polarity == AssertionPolarity.AFFIRMED
+    assert relation.modality == AssertionModality.MODAL
+    assert relation.modality_method == "dependency_modal_auxiliary_v1"
+    assert relation.temporal_years == [2027]
+
+
+def test_spacy_engine_keeps_qualifier_variants_separate() -> None:
     engine = SpacyNlpEngine()
     bundles = [
-        bundle("src_yes", "span_yes", "Microsoft acquired GitHub."),
-        bundle("src_no", "span_no", "Microsoft did not acquire GitHub."),
+        bundle("src_2018", "span_2018", "Microsoft acquired GitHub in 2018."),
+        bundle("src_2019", "span_2019", "Microsoft acquired GitHub in 2019."),
+        bundle("src_modal", "span_modal", "Microsoft may acquire GitHub in 2027."),
     ]
 
-    entities, relations = engine.extract(run_id="run_conflict", bundles=bundles)
-
+    entities, relations = engine.extract(run_id="run_qualifiers", bundles=bundles)
     microsoft = entity_by_name(entities, "Microsoft")
     github = entity_by_name(entities, "GitHub")
     matching = [
@@ -129,12 +157,12 @@ def test_spacy_engine_keeps_affirmed_and_negated_assertions_separate() -> None:
         and relation.predicate == "acquire"
     ]
 
-    assert len(matching) == 2
-    assert {relation.polarity for relation in matching} == {
-        AssertionPolarity.AFFIRMED,
-        AssertionPolarity.NEGATED,
+    assert len(matching) == 3
+    assert {(relation.modality, tuple(relation.temporal_years)) for relation in matching} == {
+        (AssertionModality.ASSERTED, (2018,)),
+        (AssertionModality.ASSERTED, (2019,)),
+        (AssertionModality.MODAL, (2027,)),
     }
-    assert {relation.evidence[0].source_id for relation in matching} == {"src_yes", "src_no"}
 
 
 def test_spacy_engine_consolidates_exact_entity_mentions_across_sources() -> None:

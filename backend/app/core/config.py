@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
     max_upload_bytes: int = 10 * 1024 * 1024
 
+    wikipedia_provider: str = "live"
+    wikipedia_endpoint: str = "https://en.wikipedia.org/w/api.php"
+    wikipedia_language: str = "en"
+    wikipedia_timeout_seconds: float = 12.0
+    wikipedia_user_agent: str = (
+        "VerityGraphAI/0.3 (+https://github.com/mohit231007/veritygraph-ai)"
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:

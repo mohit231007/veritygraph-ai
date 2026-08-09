@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class SourceType(StrEnum):
@@ -21,6 +21,7 @@ class SourceDocument(BaseModel):
     source_type: SourceType
     title: str
     filename: str | None = None
+    url: str | None = None
     source_format: str
     mime_type: str
     content_hash: str
@@ -44,6 +45,12 @@ class SourceSpan(BaseModel):
     paragraph_number: int | None = Field(default=None, ge=1)
     char_start: int = Field(ge=0)
     char_end: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_offsets(self) -> SourceSpan:
+        if self.char_end < self.char_start:
+            raise ValueError("char_end must be greater than or equal to char_start")
+        return self
 
 
 class SourceBundle(BaseModel):

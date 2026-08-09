@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes_documents import router as documents_router
 from app.api.routes_health import router as health_router
+from app.api.routes_wikipedia import router as wikipedia_router
 from app.core.config import get_settings
 from app.version import VERSION
 
@@ -24,6 +25,7 @@ app.add_middleware(
 
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(documents_router, prefix="/api/v1")
+app.include_router(wikipedia_router, prefix="/api/v1")
 
 
 @app.get("/", include_in_schema=False)

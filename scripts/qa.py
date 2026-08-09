@@ -1,12 +1,13 @@
 """Cross-platform VerityGraph quality gate.
 
 Use `python scripts/qa.py` for fast checks and `python scripts/qa.py --e2e`
-for the containerized browser journey as well.
+for the containerized browser journeys as well.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -41,7 +42,7 @@ def wait_for(url: str, timeout_seconds: int = 90) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--e2e", action="store_true", help="Run Docker + Playwright journey")
+    parser.add_argument("--e2e", action="store_true", help="Run Docker + Playwright journeys")
     args = parser.parse_args()
 
     python = sys.executable
@@ -57,6 +58,8 @@ def main() -> int:
         return 0
 
     docker = executable("docker")
+    previous_provider = os.environ.get("VERITYGRAPH_WIKIPEDIA_PROVIDER")
+    os.environ["VERITYGRAPH_WIKIPEDIA_PROVIDER"] = "fixture"
     try:
         run([docker, "compose", "up", "-d", "--build"])
         wait_for("http://localhost:3000")
@@ -65,6 +68,10 @@ def main() -> int:
         run([npm, "--prefix", "e2e", "test"])
     finally:
         subprocess.run([docker, "compose", "down", "--remove-orphans"], check=False)
+        if previous_provider is None:
+            os.environ.pop("VERITYGRAPH_WIKIPEDIA_PROVIDER", None)
+        else:
+            os.environ["VERITYGRAPH_WIKIPEDIA_PROVIDER"] = previous_provider
 
     print("\nFull VerityGraph QA passed.")
     return 0

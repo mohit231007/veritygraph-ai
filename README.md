@@ -1,214 +1,268 @@
 # VerityGraph AI
 
-**Evidence-grounded document and web intelligence. Every insight traceable to its source.**
+**Evidence-grounded document, graph and retrieval intelligence where every important output can be traced back to source evidence.**
 
-VerityGraph AI is a local-first, zero-mandatory-API-cost platform that transforms PDFs, Word documents, text files, Wikipedia pages, and permitted public web pages into persistent, traceable evidence that can power knowledge graphs, relationship intelligence, graph analytics, and source-grounded Q&A.
+VerityGraph AI is a local-first, production-deployable research application for turning PDFs, DOCX files, text files, selected Wikipedia content and permitted public web pages into persistent evidence, explicit provenance, knowledge graphs, source comparisons, measured retrieval and bounded evidence packs.
 
-> Status: **Phase 4 — persistent multi-source research workspaces**. PDF/DOCX/TXT uploads, Wikipedia discovery, and secure public-URL imports converge into one canonical provenance model and are now persisted locally in SQLite so research collections survive browser and backend restarts.
+> **Release status: 0.9.0 production-deployable beta.** The application is real and shareable today: full React UI, FastAPI backend, SQLite persistence, deterministic local NLP, graph analytics, citation topology, retrieval/evaluation, Docker, browser E2E, HTTPS production Compose, protected-demo mode, and database backup/restore. Application-level accounts/RBAC and generated Q&A are intentionally still separate hardening layers rather than being implied by the current release.
 
-## Why this project exists
+## Fastest way to run it
 
-Most knowledge-graph demos stop at `text -> entities -> edges`. VerityGraph is being built around a stronger invariant:
+Requirements: Git + Docker.
 
-```text
-Relation -> Evidence -> SourceSpan -> SourceDocument
+```bash
+git clone https://github.com/mohit231007/veritygraph-ai.git
+cd veritygraph-ai
+docker compose up -d --build
 ```
 
-The same lineage will extend into generated answers and response versions so users can inspect why a claim exists, rate it, explain what is weak, improve the answer against frozen evidence, compare versions, and keep/export the preferred response.
-
-## What works now
-
-### 1. Document intelligence
-
-Upload:
-
-- PDF
-- DOCX
-- TXT
-
-The document boundary performs extension/MIME validation, safe-basename normalization, bounded reads, SHA-256 hashing, format-specific parsing, and provenance construction.
-
-- **PDF:** readable page-level spans via PyMuPDF.
-- **DOCX:** paragraph spans plus table-row spans. Page numbers are not invented because DOCX pagination depends on rendering.
-- **TXT:** blank-line paragraph spans with UTF-8/UTF-8-SIG and CP1252 fallback; synthetic page 1.
-- **Scanned PDFs:** fail clearly until an OCR adapter lands.
-
-### 2. Wikipedia intelligence
-
-The Source Studio can:
-
-1. search Wikipedia through the official MediaWiki Action API;
-2. inspect the article outline;
-3. select only relevant sections;
-4. import selected sections into canonical evidence spans;
-5. retain public URL, page ID, revision ID, section heading, and paragraph provenance.
-
-Normal runtime uses live English Wikipedia without an API key. Deterministic tests replace only the external provider boundary.
-
-### 3. Secure public URL intelligence
-
-Paste a permitted public HTTP(S) page and VerityGraph will:
-
-1. validate scheme, credentials, hostname, port, and resolved IP addresses;
-2. reject private/loopback/link-local/reserved/non-global targets;
-3. manually follow and revalidate redirects;
-4. enforce time, redirect, content-type, and body-size limits;
-5. fetch only HTML/XHTML/TXT;
-6. pass already-approved bytes to Trafilatura for main-content extraction;
-7. create canonical evidence spans and retain requested/final URL plus transport provenance.
-
-Public URL ingestion does **not** support authentication/paywall/access-control bypasses. Application-level SSRF checks also do not replace production network egress restrictions; see `docs/adr/0004-public-url-ingestion-security-boundary.md`.
-
-### 4. Persistent multi-source workspaces
-
-Canonical sources and evidence spans are now stored in **SQLite by default**. Users can create named research workspaces and combine any mixture of:
-
-- uploaded documents;
-- Wikipedia selections;
-- permitted public URLs.
-
-Workspace membership is separate from source identity:
-
-- adding the same source twice is idempotent;
-- removing a source from a workspace does not delete the canonical source;
-- deleting a workspace does not delete its source records;
-- deleting a source automatically removes orphan workspace membership through foreign-key cascades.
-
-The React interface lets users create/select a workspace, add the current analysed source, inspect the collection, remove membership, and reload the browser while the workspace remains available.
-
-Docker persists the database in a named local volume at `/data/veritygraph.db`. The backend container runs as a dedicated non-root `veritygraph` user.
-
-## One canonical evidence architecture
+Open:
 
 ```text
-+----------------------+       +----------------------+
-| PDF / DOCX / TXT     |       | Wikipedia discovery  |
-+----------+-----------+       +-----------+----------+
-           |                               |
-           +---------------+---------------+
-                           |
-                           v
-                  +------------------+
-                  | SourceDocument   |
-                  +--------+---------+
-                           |
-                           v
-                    SourceSpan[]
-                           ^
-                           |
-                 +---------+----------+
-                 | Secure public URL  |
-                 +--------------------+
-                           |
-                           v
-                     SQLite store
-                           |
-                           v
-                Research Workspace(s)
-                           |
-                           v
-             Phase 5+: NLP / relations
-                           |
-                           v
-                evidence-grounded graph
+App:      http://localhost:3000
+API docs: http://localhost:8000/docs
 ```
 
-The architectural rule remains **provenance before NLP**. Downstream components consume durable `SourceSpan` identities rather than anonymous strings.
+Windows shortcut:
 
-## Product pillars
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start-local.ps1
+```
 
-- **Different inputs, one canonical model** — documents and public knowledge share one source/evidence contract.
-- **Evidence first** — future graph edges and generated insights remain traceable to spans, pages, sections, revisions, files, and URLs.
-- **Persistent multi-source intelligence** — heterogeneous evidence can be grouped into reusable local research workspaces.
-- **Insight Studio** — rate, critique, improve, compare, copy, download, and later share reproducible answer versions.
-- **Explainable confidence** — separate source-derived facts, graph-computed insights, and generated synthesis.
-- **Local-first and free by default** — no paid API or hosted database is required for the core product.
-- **Quality as a feature** — unit, security, protocol, persistence, provenance, API, container, and browser E2E tests evolve with every feature.
+macOS/Linux shortcut:
 
-## Free/open stack
+```bash
+chmod +x scripts/start-local.sh
+./scripts/start-local.sh
+```
 
-| Layer | Default |
+For domain-backed HTTPS hosting, password-protected demos, LAN sharing, temporary public tunnels, upgrades, backup and restore, see **[`docs/deployment.md`](docs/deployment.md)**.
+
+## What a user can do now
+
+### Build a persistent research workspace
+
+A workspace can combine:
+
+- PDF documents;
+- Word/DOCX documents;
+- text files;
+- selected sections from Wikipedia;
+- permitted public HTTP(S) pages.
+
+All inputs converge into one canonical source/evidence model and persist in SQLite across browser/backend restarts.
+
+### Inspect exact provenance
+
+VerityGraph retains source-level and span-level lineage rather than flattening everything into anonymous text.
+
+```text
+SourceDocument
+  -> SourceSpan
+  -> SourceReference
+  -> SourceIdentifier
+```
+
+Depending on the format this can include page, section, paragraph, MediaWiki revision/section, explicit URL reference, citation marker/bibliography text, DOI, arXiv ID or validated ISBN.
+
+### Analyse entities and relationships locally
+
+spaCy powers deterministic local NER/dependency extraction. Relations retain exact evidence and conservative assertion qualifiers such as polarity, modality and explicit year scope.
+
+Entity resolution is intentionally conservative and explainable. Ambiguous aliases remain separate rather than being force-merged.
+
+### Explore an evidence graph
+
+The analysis run projects into a NetworkX evidence graph with an interactive Cytoscape browser UI.
+
+Available structural views include:
+
+- directed evidence assertions;
+- PageRank;
+- degree/betweenness context;
+- connected components;
+- communities;
+- graph density;
+- evidence-backed connection paths.
+
+Explicit negated and modal/future assertions remain inspectable but are excluded from established structural connectivity.
+
+### Compare sources without pretending source IDs prove independence
+
+Source comparison exposes:
+
+- relation support across sources;
+- evidence diversity;
+- scoped contradiction candidates;
+- exact content/evidence overlap review signals;
+- possible derivation signals where deterministic overlap supports review.
+
+A contradiction candidate is a review signal, not a truth verdict.
+
+### Inspect explicit citation/reference lineage
+
+VerityGraph preserves and resolves supported explicit references from:
+
+- visible URLs;
+- HTML links tied to retained main content;
+- DOCX hyperlinks;
+- PDF URI link annotations;
+- selected MediaWiki citations/reference entries.
+
+URL matches can be external, uniquely resolved to a workspace source, or ambiguous.
+
+### Preserve DOI / arXiv / ISBN identity without overclaiming
+
+Bibliographic identifiers have separate roles:
+
+```text
+mention
+reference
+source_identity
+```
+
+Two sources merely mentioning the same DOI are **not** treated as proof that either source is that DOI's work. `source_identity` is only attested from supported acquisition URLs such as DOI/arXiv work URLs.
+
+### Explore a deterministic citation graph
+
+A directed source-to-source citation edge is admitted only when explicit provenance uniquely resolves:
+
+```text
+SourceReference -> one workspace URL target
+```
+
+or:
+
+```text
+reference-role identifier -> one attested source_identity target
+```
+
+Shared identifier mentions alone create no citation edge. Ambiguous references remain review data instead of being forced into topology.
+
+### Retrieve exact evidence spans
+
+The retrieval preview uses a deterministic local BM25-style lexical ranker over persisted `SourceSpan` text.
+
+Citation neighbors are returned separately as discovery context. Graph connectivity does not change lexical scores and does not promote a neighbor's text into ranked evidence.
+
+### Measure retrieval instead of claiming improvement
+
+The Retrieval Evaluation Lab accepts explicit relevant-span labels and reports:
+
+- Recall@K;
+- Precision@K;
+- HitRate@K;
+- Mean Reciprocal Rank;
+- per-query first relevant rank and diagnostics.
+
+Stale labels referring to spans outside the workspace fail closed instead of silently lowering metrics.
+
+### Build a Grounded Evidence Pack
+
+The Grounded Evidence Pack is the deterministic boundary before any future generator.
+
+Users choose explicit budgets for:
+
+- total excerpts;
+- excerpts per source;
+- characters per excerpt;
+- total context characters.
+
+The output retains exact source/span IDs and excerpt character ranges. A long span is windowed deterministically around matched query terms.
+
+The UI can:
+
+- inspect every allowed excerpt;
+- inspect citation discovery metadata separately;
+- copy a generator-ready evidence block;
+- download the full pack as JSON.
+
+**Citation-neighbor text does not enter the evidence pack unless one of that source's own spans independently matched retrieval.**
+
+## Evidence architecture
+
+```text
+PDF / DOCX / TXT ─┐
+Wikipedia ─────────┼─> SourceDocument + SourceSpan
+Public web ────────┘            |
+                                +-> explicit URL/citation lineage
+                                +-> DOI/arXiv/ISBN lineage
+                                |
+                                v
+                         persistent SQLite
+                                |
+                                v
+                        Research Workspace
+                         /             \
+                        v               v
+             immutable NLP run    citation topology
+                        |               |
+                        v               |
+        Entity + qualified relation     |
+        + exact RelationEvidence        |
+                        |               |
+                        v               |
+                  Evidence Graph        |
+                        |               |
+                        +-------+-------+
+                                |
+                                v
+                      direct span retrieval
+                                |
+                     +----------+----------+
+                     |                     |
+                     v                     v
+             ranked evidence       citation context
+                     |              metadata only
+                     v
+                evaluation
+                     |
+                     v
+             Grounded Evidence Pack
+                     |
+                     v
+            future grounded generator
+```
+
+The invariant is **provenance before inference**.
+
+## Stack
+
+| Layer | Implementation |
 |---|---|
 | Frontend | React + TypeScript + Vite |
-| API | FastAPI |
+| Production frontend | Nginx |
+| API | FastAPI + Pydantic |
+| Persistence | SQLite |
 | PDF | PyMuPDF |
 | DOCX | python-docx |
-| Wikipedia | Official MediaWiki Action API |
-| Public HTTP | httpx with VerityGraph validation |
-| Main web content | Trafilatura |
-| HTML normalization | Beautiful Soup |
-| Persistence/workspaces | SQLite |
-| NLP (next) | spaCy |
-| Graph (next) | NetworkX |
-| Optional larger graph | Neo4j Community |
-| Optional local generation | Ollama-compatible models |
-| Optional local embeddings | sentence-transformers |
-| Backend QA | pytest + Ruff |
-| Frontend QA | TypeScript/Vite build |
-| Browser E2E | Playwright |
-| Containers | Docker Compose |
+| Wikipedia | MediaWiki Action API |
+| Public HTTP | httpx with SSRF-aware validation |
+| Web extraction | Trafilatura + Beautiful Soup |
+| NLP | spaCy `en_core_web_sm` |
+| Graph analytics | NetworkX |
+| Browser graph | Cytoscape.js |
+| Retrieval | deterministic BM25-style lexical ranking |
+| Backend tests | pytest + Ruff |
+| Browser tests | Playwright |
+| Local containers | Docker Compose |
+| Production edge | Caddy + automatic HTTPS |
 | CI | GitHub Actions |
 
-## API contracts available now
+No paid API is mandatory for the current core application.
 
-```text
-GET  /api/v1/health
-
-POST /api/v1/documents/upload
-GET  /api/v1/documents/{source_id}
-
-GET  /api/v1/wikipedia/search?q=<topic>
-GET  /api/v1/wikipedia/pages/{page_id}/outline
-POST /api/v1/wikipedia/import
-
-POST /api/v1/web/import
-
-GET  /api/v1/sources
-GET  /api/v1/sources/{source_id}
-
-POST   /api/v1/workspaces
-GET    /api/v1/workspaces
-GET    /api/v1/workspaces/{workspace_id}
-PUT    /api/v1/workspaces/{workspace_id}/sources/{source_id}
-DELETE /api/v1/workspaces/{workspace_id}/sources/{source_id}
-DELETE /api/v1/workspaces/{workspace_id}
-```
-
-FastAPI interactive documentation is available at `/docs` when the backend is running.
-
-## Quality strategy
-
-VerityGraph tests each external/storage boundary separately and then verifies the whole user journey:
-
-- real in-memory PDF/DOCX fixtures exercise document parsing;
-- MediaWiki protocol tests use `httpx.MockTransport` to validate search/TOC/section-response handling without public-network dependency;
-- public-web security tests use mocked DNS and HTTP transport to prove unsafe targets, redirects, MIME types, and oversized bodies are rejected;
-- SQLite tests write data, recreate repository objects against the same database file, and verify source/workspace restoration;
-- deterministic Wikipedia/Web fixture providers replace only external network boundaries during browser E2E;
-- Playwright still drives the real React UI, Nginx proxy, FastAPI routes, SQLite repository, normalization, and provenance preview.
-
-Current mandatory browser regressions:
-
-```text
-Browser -> TXT upload -> parser -> SQLite -> provenance -> preview
-Browser -> Wikipedia search -> outline -> section import -> SQLite -> provenance -> preview
-Browser -> public URL -> safe import -> extraction -> SQLite -> provenance -> preview
-Browser -> create workspace -> add source -> reload -> source still in workspace
-```
-
-## Run locally
+## Run in developer mode
 
 ### Backend
 
 ```bash
 python -m venv .venv
-# Windows PowerShell: .venv\Scripts\Activate.ps1
+# Windows: .venv\Scripts\Activate.ps1
 # macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
+python -m spacy download en_core_web_sm
 uvicorn app.main:app --app-dir backend --reload
 ```
-
-By default, local data is stored at `data/veritygraph.db`. Override with `VERITYGRAPH_DATABASE_PATH`.
 
 ### Frontend
 
@@ -218,67 +272,186 @@ npm install
 npm run dev
 ```
 
-### Full stack
+Open `http://localhost:5173`. Vite proxies `/api` to `http://localhost:8000`.
 
-```bash
-docker compose up --build
+## Share it with other people
+
+### Same Wi-Fi/LAN
+
+Run Docker locally, then share:
+
+```text
+http://YOUR-LAN-IP:3000
 ```
 
-Frontend: `http://localhost:3000`
+Use this only on a trusted network because there is no app-level login in 0.9.
 
-Docker persists application data in the named `veritygraph_data` volume. Use `docker compose down` to stop the stack without deleting data. Removing the volume is intentionally a separate operation.
+### Temporary internet demo
 
-### QA
+After the local stack is running and `cloudflared` is installed:
 
-Fast checks:
+```powershell
+# Windows
+.\scripts\share-quick.ps1
+```
+
+```bash
+# macOS/Linux
+./scripts/share-quick.sh
+```
+
+This prints a temporary public HTTPS URL. It is a demo/testing path, not durable production hosting.
+
+### Durable HTTPS deployment
+
+Use a Linux VPS/server and a domain:
+
+```bash
+cp .env.production.example .env.production
+# set VERITYGRAPH_DOMAIN in .env.production
+./scripts/deploy-prod.sh .env.production
+```
+
+Production topology:
+
+```text
+Internet -> Caddy HTTPS -> frontend Nginx -> internal FastAPI -> SQLite volume
+```
+
+Only Caddy is published publicly in `docker-compose.prod.yml`.
+
+### Password-protected portfolio/client demo
+
+Switch in `.env.production`:
+
+```dotenv
+VERITYGRAPH_CADDYFILE=./deploy/Caddyfile.protected
+VERITYGRAPH_AUTH_USER=demo
+VERITYGRAPH_AUTH_PASSWORD_HASH='CADDY_GENERATED_HASH'
+```
+
+This is a shared outer password gate, **not** multi-user RBAC.
+
+Full instructions: [`docs/deployment.md`](docs/deployment.md).
+
+## Backup and restore
+
+Production mounts `./backups` into the backend and ships `scripts/sqlite_backup.py`.
+
+Example live backup:
+
+```bash
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+docker compose --env-file .env.production -f docker-compose.prod.yml exec -T backend \
+  python scripts/sqlite_backup.py backup \
+  --source /data/veritygraph.db \
+  --output /backups/veritygraph-$STAMP.db
+```
+
+The utility uses SQLite's backup API. Restore instructions and the required stop/start sequence are in the deployment runbook.
+
+## API
+
+FastAPI's complete interactive schema is available at `/docs` when the backend is running.
+
+Important route groups include:
+
+```text
+/api/v1/health
+/api/v1/documents/*
+/api/v1/wikipedia/*
+/api/v1/web/*
+/api/v1/sources/*
+/api/v1/workspaces/*
+/api/v1/workspaces/{id}/reference-lineage
+/api/v1/workspaces/{id}/identifier-lineage
+/api/v1/workspaces/{id}/citation-graph
+/api/v1/workspaces/{id}/retrieval/preview
+/api/v1/workspaces/{id}/retrieval/evaluate
+/api/v1/workspaces/{id}/retrieval/evidence-pack
+/api/v1/analyses/*
+```
+
+## QA contract
+
+Every pull request is gated by:
+
+1. frontend TypeScript/Vite production build;
+2. Ruff over backend and operational scripts;
+3. complete pytest backend regression suite using a real local spaCy model;
+4. production Docker Compose syntax validation;
+5. public and protected Caddy configuration validation;
+6. non-root Docker stack startup;
+7. full Playwright browser regression suite against React + Nginx + FastAPI + SQLite.
+
+Run locally:
 
 ```bash
 python scripts/qa.py
-```
-
-Full deterministic browser gate:
-
-```bash
 python scripts/qa.py --e2e
 ```
 
-or, where `make` is available:
+or:
 
 ```bash
 make qa
 ```
 
-The E2E command temporarily selects deterministic Wikipedia and web fixtures and restores the caller's previous environment afterwards. Normal runtime defaults to live providers.
+## Current deployment/security boundary
+
+0.9 is suitable for:
+
+- a single-owner real deployment;
+- a portfolio/recruiter demo;
+- a client demo;
+- a trusted small research team;
+- a password-gated shared workspace.
+
+It is **not yet an untrusted multi-tenant SaaS**. Before that step, add:
+
+- application login/identity;
+- workspace ownership and RBAC;
+- quotas/rate limits/abuse controls;
+- identity-aware audit logging;
+- secrets management and production monitoring;
+- a database architecture designed for multiple application instances.
+
+See [`docs/deployment.md`](docs/deployment.md) and [`docs/adr/0022-production-deployment-boundary.md`](docs/adr/0022-production-deployment-boundary.md).
 
 ## Repository map
 
 ```text
-backend/              FastAPI, domain models, safe ingestion, SQLite repositories, tests
-frontend/             React/TypeScript Source Studio, workspaces, shared provenance UI
+backend/              FastAPI, domain/services, SQLite repositories, NLP/graph logic, tests
+frontend/             React/TypeScript evidence intelligence UI
 e2e/                  Playwright full-browser journeys
-docs/                  architecture, data model, security/persistence ADRs, QA contract
-scripts/               cross-platform developer automation
-.github/workflows/     CI quality gates
+deploy/               Caddy public/protected production edge configs
+docs/                  architecture, runbook, data model, QA and ADRs
+scripts/               QA, launch, sharing and SQLite backup utilities
+.github/workflows/     mandatory quality gate
 ```
 
-## Roadmap
+## Roadmap after 0.9
 
-1. ✅ Production foundation + browser/API quality gate.
-2. ✅ Canonical `SourceDocument` / `SourceSpan` provenance model.
-3. ✅ PDF, DOCX, TXT ingestion.
-4. ✅ Wikipedia search, section selection, revision provenance.
-5. ✅ SSRF-aware public URL ingestion + main-content extraction.
-6. ✅ SQLite source persistence + multi-source research workspaces.
-7. **spaCy entity extraction + evidence-linked relation extraction + analysis runs.**
-8. Entity resolution and alias handling.
-9. Evidence graph + NetworkX analytics.
-10. Insight Studio feedback/versioning/copy/download workflow.
-11. Multi-source agreement/conflict intelligence.
-12. Optional local GraphRAG and answer-improvement engine.
-13. Golden NLP evaluation sets with measured precision/recall/F1.
-14. Neo4j Community adapter and larger-corpus workflows.
+The next high-value layers are deliberately measurable rather than demo-only:
 
-See `docs/architecture.md`, `docs/data-model.md`, `docs/qa.md`, and `docs/adr/` for design rationale.
+1. application identity, workspace ownership and RBAC;
+2. optional grounded answer generation consuming only `GroundedEvidencePack`;
+3. claim-to-evidence validation for generated answers;
+4. semantic/hybrid retrieval evaluated against the existing labelled benchmark;
+5. persistent evaluation datasets and regression dashboards;
+6. PostgreSQL/managed-database path for multi-user deployments;
+7. optional Neo4j adapter for larger graph workloads;
+8. optional local embedding/generation adapters.
+
+## Architecture decisions
+
+Start with:
+
+- [`docs/architecture.md`](docs/architecture.md)
+- [`docs/data-model.md`](docs/data-model.md)
+- [`docs/qa.md`](docs/qa.md)
+- [`docs/adr/0021-grounded-evidence-pack.md`](docs/adr/0021-grounded-evidence-pack.md)
+- [`docs/adr/0022-production-deployment-boundary.md`](docs/adr/0022-production-deployment-boundary.md)
 
 ## License
 

@@ -123,8 +123,8 @@ def test_comparison_api_rejects_disjoint_year_and_modal_false_conflicts() -> Non
 
     assert comparison["summary"]["contradiction_candidate_count"] == 0
     assert comparison["contradictions"] == []
-    assert "Disjoint years" in comparison["interpretation_note"]
-    assert "modal language" in comparison["interpretation_note"]
+    assert "asserted opposing polarity" in comparison["interpretation_note"]
+    assert "compatible explicit time scope" in comparison["interpretation_note"]
 
 
 def test_missing_comparison_contracts_return_404() -> None:

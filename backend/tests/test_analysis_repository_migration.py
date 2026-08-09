@@ -3,7 +3,7 @@ import sqlite3
 from app.repositories.analysis_repository import SqliteAnalysisRepository
 
 
-def test_existing_analysis_database_adds_resolver_version_without_data_loss(tmp_path) -> None:
+def test_existing_analysis_database_adds_lineage_columns_without_data_loss(tmp_path) -> None:
     database_path = tmp_path / "legacy-analysis.db"
     with sqlite3.connect(database_path) as connection:
         connection.execute(
@@ -24,6 +24,19 @@ def test_existing_analysis_database_adds_resolver_version_without_data_loss(tmp_
                 entity_count INTEGER NOT NULL,
                 relation_count INTEGER NOT NULL,
                 error TEXT
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE analysis_relations (
+                relation_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL,
+                subject_entity_id TEXT NOT NULL,
+                predicate TEXT NOT NULL,
+                object_entity_id TEXT NOT NULL,
+                extraction_score REAL NOT NULL,
+                extraction_method TEXT NOT NULL
             )
             """
         )
@@ -50,24 +63,57 @@ def test_existing_analysis_database_adds_resolver_version_without_data_loss(tmp_
                 1,
                 1,
                 0,
-                0,
+                1,
                 None,
+            ),
+        )
+        connection.execute(
+            """
+            INSERT INTO analysis_relations (
+                relation_id, run_id, subject_entity_id, predicate,
+                object_entity_id, extraction_score, extraction_method
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "rel_legacy",
+                "run_legacy",
+                "ent_subject",
+                "acquire",
+                "ent_object",
+                0.92,
+                "dependency_subject_object",
             ),
         )
 
     repository = SqliteAnalysisRepository(database_path)
 
     with sqlite3.connect(database_path) as connection:
-        columns = {
+        run_columns = {
             row[1] for row in connection.execute("PRAGMA table_info(analysis_runs)").fetchall()
+        }
+        relation_columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(analysis_relations)").fetchall()
         }
         resolver_version = connection.execute(
             "SELECT resolver_version FROM analysis_runs WHERE run_id = ?",
             ("run_legacy",),
         ).fetchone()[0]
+        polarity, polarity_method = connection.execute(
+            """
+            SELECT polarity, polarity_method FROM analysis_relations
+            WHERE relation_id = ?
+            """,
+            ("rel_legacy",),
+        ).fetchone()
 
-    assert "resolver_version" in columns
+    assert "resolver_version" in run_columns
     assert resolver_version == "none"
+    assert "polarity" in relation_columns
+    assert "polarity_method" in relation_columns
+    assert polarity == "unknown"
+    assert polarity_method == "historical_unknown"
+
     restored = repository.get("run_legacy")
     assert restored is not None
     assert restored.run.resolver_version == "none"

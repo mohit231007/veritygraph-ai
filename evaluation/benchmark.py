@@ -6,6 +6,7 @@ from pathlib import Path
 
 from app.domain.source import SourceBundle, SourceDocument, SourceSpan, SourceType
 from app.nlp.engine import SpacyNlpEngine
+from app.nlp.resolver import DeterministicEntityResolver
 from evaluation.metrics import Triple, exact_triple_metrics
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +41,7 @@ def bundle_for_case(case_id: str, text: str) -> SourceBundle:
 def run_benchmark(gold_path: Path, model_name: str) -> dict:
     cases = json.loads(gold_path.read_text(encoding="utf-8"))
     engine = SpacyNlpEngine(model_name=model_name)
+    resolver = DeterministicEntityResolver()
 
     predicted: set[Triple] = set()
     gold: set[Triple] = set()
@@ -51,6 +53,7 @@ def run_benchmark(gold_path: Path, model_name: str) -> dict:
             run_id=f"eval_run_{case['case_id']}",
             bundles=[bundle],
         )
+        entities, relations = resolver.resolve(entities=entities, relations=relations)
         names = {entity.entity_id: entity.canonical_name for entity in entities}
         predicted_case: set[Triple] = {
             (
@@ -83,6 +86,7 @@ def run_benchmark(gold_path: Path, model_name: str) -> dict:
         "model_version": engine.model_version,
         "pipeline_version": engine.PIPELINE_VERSION,
         "extractor_version": engine.EXTRACTOR_VERSION,
+        "resolver_version": resolver.VERSION,
         "case_count": len(cases),
         "metrics": metrics.as_dict(),
         "cases": case_results,

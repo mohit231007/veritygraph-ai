@@ -25,6 +25,7 @@ class AnalysisRun(BaseModel):
     completed_at: datetime | None = None
     duration_ms: int | None = Field(default=None, ge=0)
     source_count: int = Field(default=0, ge=0)
+    source_ids: list[str] = Field(default_factory=list)
     span_count: int = Field(default=0, ge=0)
     entity_count: int = Field(default=0, ge=0)
     relation_count: int = Field(default=0, ge=0)

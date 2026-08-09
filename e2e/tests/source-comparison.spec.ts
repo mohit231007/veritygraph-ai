@@ -11,7 +11,7 @@ async function uploadAndAdd(page, name: string, text: string) {
   await page.getByTestId("workspace-add-source").click();
 }
 
-test("two sources expose corroborated and single-source evidence without inventing contradiction", async ({ page }) => {
+test("two sources expose exact corroboration without inventing contradiction", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("api-status")).toHaveText("API healthy");
 
@@ -19,18 +19,9 @@ test("two sources expose corroborated and single-source evidence without inventi
   await page.getByTestId("workspace-create-button").click();
   await expect(page.getByTestId("workspace-message")).toContainText("created locally");
 
-  await uploadAndAdd(
-    page,
-    "source-one.txt",
-    "Microsoft acquired GitHub. GitHub acquired OpenAI.",
-  );
+  await uploadAndAdd(page, "source-one.txt", "Microsoft acquired GitHub. GitHub acquired OpenAI.");
   await expect(page.getByTestId("workspace-source-count")).toHaveText("1 source");
-
-  await uploadAndAdd(
-    page,
-    "source-two.txt",
-    "Microsoft acquired GitHub. Amazon acquired Twitch.",
-  );
+  await uploadAndAdd(page, "source-two.txt", "Microsoft acquired GitHub. Amazon acquired Twitch.");
   await expect(page.getByTestId("workspace-source-count")).toHaveText("2 sources");
 
   await page.getByTestId("analyse-workspace-button").click();
@@ -42,9 +33,8 @@ test("two sources expose corroborated and single-source evidence without inventi
     { timeout: 10_000 },
   );
   await expect(page.getByTestId("contradiction-count")).toContainText("0");
-
   await expect(page.getByTestId("comparison-guardrail")).toContainText(
-    "Missing evidence ≠ contradiction",
+    "Silence, modality, or different time scope ≠ contradiction",
   );
   await expect(page.getByTestId("source-profile-list")).toContainText("source-one.txt");
   await expect(page.getByTestId("source-profile-list")).toContainText("source-two.txt");
@@ -56,11 +46,15 @@ test("two sources expose corroborated and single-source evidence without inventi
   await expect(claimList).toContainText("acquire");
   await expect(claimList).toContainText("GitHub");
   await expect(claimList).toContainText("AFFIRMED");
+  await expect(claimList).toContainText("ASSERTED");
+  await expect(claimList).toContainText("No explicit year");
   await expect(claimList).toContainText("2 sources");
 
   await claimList.getByRole("button").click();
   const detail = page.getByTestId("comparison-claim-detail");
-  await expect(detail).toContainText("AFFIRMED · CROSS-SOURCE SUPPORT");
+  await expect(detail).toContainText("AFFIRMED");
+  await expect(detail).toContainText("ASSERTED");
+  await expect(detail).toContainText("CROSS-SOURCE SUPPORT");
   await expect(detail).toContainText("source-one.txt");
   await expect(detail).toContainText("source-two.txt");
   await expect(detail).toContainText("Microsoft acquired GitHub.");
@@ -77,7 +71,4 @@ test("two sources expose corroborated and single-source evidence without inventi
     timeout: 10_000,
   });
   await expect(page.getByTestId("contradiction-count")).toContainText("0");
-  await expect(page.getByTestId("comparison-guardrail")).toContainText(
-    "Missing evidence ≠ contradiction",
-  );
 });

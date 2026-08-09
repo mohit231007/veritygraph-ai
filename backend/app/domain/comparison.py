@@ -4,7 +4,11 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from app.domain.analysis import AssertionPolarity, RelationEvidence
+from app.domain.analysis import (
+    AssertionModality,
+    AssertionPolarity,
+    RelationEvidence,
+)
 from app.domain.source import SourceType
 
 
@@ -22,6 +26,10 @@ class ComparisonClaim(BaseModel):
     object_label: str
     polarity: AssertionPolarity
     polarity_method: str
+    modality: AssertionModality
+    modality_method: str
+    temporal_years: list[int]
+    temporal_method: str
     extraction_score: float = Field(ge=0.0, le=1.0)
     support_level: ClaimSupportLevel
     source_count: int = Field(ge=1)
@@ -37,6 +45,7 @@ class ContradictionCandidate(BaseModel):
     predicate: str
     object_entity_id: str
     object_label: str
+    temporal_years: list[int]
     affirmed_relation_ids: list[str]
     negated_relation_ids: list[str]
     affirmed_source_ids: list[str]

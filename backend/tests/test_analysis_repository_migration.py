@@ -99,20 +99,33 @@ def test_existing_analysis_database_adds_lineage_columns_without_data_loss(tmp_p
             "SELECT resolver_version FROM analysis_runs WHERE run_id = ?",
             ("run_legacy",),
         ).fetchone()[0]
-        polarity, polarity_method = connection.execute(
+        qualifier_row = connection.execute(
             """
-            SELECT polarity, polarity_method FROM analysis_relations
-            WHERE relation_id = ?
+            SELECT polarity, polarity_method, modality, modality_method,
+                   temporal_years_json, temporal_method
+            FROM analysis_relations WHERE relation_id = ?
             """,
             ("rel_legacy",),
         ).fetchone()
 
     assert "resolver_version" in run_columns
     assert resolver_version == "none"
-    assert "polarity" in relation_columns
-    assert "polarity_method" in relation_columns
-    assert polarity == "unknown"
-    assert polarity_method == "historical_unknown"
+    assert {
+        "polarity",
+        "polarity_method",
+        "modality",
+        "modality_method",
+        "temporal_years_json",
+        "temporal_method",
+    }.issubset(relation_columns)
+    assert qualifier_row == (
+        "unknown",
+        "historical_unknown",
+        "unknown",
+        "historical_unknown",
+        "[]",
+        "historical_unknown",
+    )
 
     restored = repository.get("run_legacy")
     assert restored is not None

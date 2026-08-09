@@ -4,7 +4,13 @@ import re
 import unicodedata
 from collections import defaultdict
 
-from app.domain.analysis import AssertionPolarity, Entity, Relation, RelationEvidence
+from app.domain.analysis import (
+    AssertionModality,
+    AssertionPolarity,
+    Entity,
+    Relation,
+    RelationEvidence,
+)
 
 CORPORATE_SUFFIXES = {
     "ag",
@@ -202,7 +208,17 @@ class DeterministicEntityResolver:
         relations: list[Relation],
         entity_id_map: dict[str, str],
     ) -> list[Relation]:
-        aggregated: dict[tuple[str, str, str, AssertionPolarity], Relation] = {}
+        aggregated: dict[
+            tuple[
+                str,
+                str,
+                str,
+                AssertionPolarity,
+                AssertionModality,
+                tuple[int, ...],
+            ],
+            Relation,
+        ] = {}
         evidence_seen: dict[str, set[tuple[str, str, int, int, str]]] = defaultdict(set)
 
         for relation in relations:
@@ -217,7 +233,14 @@ class DeterministicEntityResolver:
             if subject_id == object_id:
                 continue
 
-            key = (subject_id, relation.predicate, object_id, relation.polarity)
+            key = (
+                subject_id,
+                relation.predicate,
+                object_id,
+                relation.polarity,
+                relation.modality,
+                tuple(relation.temporal_years),
+            )
             resolved = aggregated.get(key)
             if resolved is None:
                 resolved = relation.model_copy(
@@ -233,6 +256,8 @@ class DeterministicEntityResolver:
                 resolved.extraction_score = relation.extraction_score
                 resolved.extraction_method = relation.extraction_method
                 resolved.polarity_method = relation.polarity_method
+                resolved.modality_method = relation.modality_method
+                resolved.temporal_method = relation.temporal_method
 
             for evidence in relation.evidence:
                 evidence_key = (
@@ -263,6 +288,8 @@ class DeterministicEntityResolver:
                 -relation.extraction_score,
                 relation.predicate,
                 relation.polarity.value,
+                relation.modality.value,
+                tuple(relation.temporal_years),
             )
         )
         return resolved_relations

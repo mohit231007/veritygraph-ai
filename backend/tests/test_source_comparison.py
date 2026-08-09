@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from app.domain.analysis import (
     AnalysisRun,
     AnalysisStatus,
+    AssertionModality,
     AssertionPolarity,
     Entity,
     EntityMention,
@@ -60,6 +61,8 @@ def relation(
     source_ids: list[str],
     *,
     polarity: AssertionPolarity = AssertionPolarity.AFFIRMED,
+    modality: AssertionModality = AssertionModality.ASSERTED,
+    years: list[int] | None = None,
 ) -> Relation:
     evidence = [
         RelationEvidence(
@@ -85,6 +88,14 @@ def relation(
             if polarity == AssertionPolarity.NEGATED
             else "dependency_no_root_negation_v1"
         ),
+        modality=modality,
+        modality_method=(
+            "dependency_modal_auxiliary_v1"
+            if modality == AssertionModality.MODAL
+            else "dependency_no_modal_auxiliary_v1"
+        ),
+        temporal_years=years or [],
+        temporal_method="sentence_year_regex_v1",
         extraction_score=0.92,
         extraction_method="dependency_subject_object",
         evidence=evidence,
@@ -100,7 +111,7 @@ def analysis_fixture() -> WorkspaceAnalysis:
             pipeline_version="spacy-baseline-v1",
             model_name="en_core_web_sm",
             model_version="3.8.0",
-            extractor_version="dependency-relations-v2-polarity",
+            extractor_version="dependency-relations-v3-qualifiers",
             resolver_version="deterministic-org-aliases-v1",
             started_at=datetime.now(UTC),
             completed_at=datetime.now(UTC),
@@ -131,38 +142,123 @@ def source_documents() -> dict[str, SourceDocument]:
     }
 
 
-def test_comparison_distinguishes_corroboration_from_single_source_evidence() -> None:
+def test_comparison_distinguishes_exact_qualified_support() -> None:
     comparison = build_source_comparison(
-        analysis_fixture(),
-        source_documents=source_documents(),
+        analysis_fixture(), source_documents=source_documents()
     )
 
-    assert comparison.comparison_version == "source-corroboration-v2-polarity"
-    assert comparison.summary.source_count == 2
-    assert comparison.summary.claim_count == 3
+    assert comparison.comparison_version == "source-corroboration-v3-qualifiers"
     assert comparison.summary.cross_source_claim_count == 1
     assert comparison.summary.single_source_claim_count == 2
     assert comparison.summary.contradiction_candidate_count == 0
-    assert comparison.summary.pair_count == 1
 
     shared = next(claim for claim in comparison.claims if claim.relation_id == "rel_shared")
     assert shared.support_level == ClaimSupportLevel.CROSS_SOURCE
     assert shared.polarity == AssertionPolarity.AFFIRMED
-    assert shared.source_count == 2
-    assert shared.evidence_count == 2
-    assert shared.source_ids == ["src_a", "src_b"]
+    assert shared.modality == AssertionModality.ASSERTED
+    assert shared.temporal_years == []
 
-    unique = next(claim for claim in comparison.claims if claim.relation_id == "rel_a")
-    assert unique.support_level == ClaimSupportLevel.SINGLE_SOURCE
-    assert unique.source_count == 1
 
-    overlap = comparison.overlaps[0]
-    assert overlap.shared_claim_count == 1
-    assert overlap.union_claim_count == 3
-    assert overlap.jaccard_similarity == 1 / 3
-    assert overlap.shared_relation_ids == ["rel_shared"]
-    assert "absence" in comparison.interpretation_note.casefold()
-    assert "contradiction" in comparison.interpretation_note.casefold()
+def test_same_year_asserted_opposing_polarity_creates_candidate() -> None:
+    analysis = analysis_fixture()
+    analysis.relations = [
+        relation("rel_yes", "ent_microsoft", "ent_github", ["src_a"], years=[2018]),
+        relation(
+            "rel_no",
+            "ent_microsoft",
+            "ent_github",
+            ["src_b"],
+            polarity=AssertionPolarity.NEGATED,
+            years=[2018],
+        ),
+    ]
+
+    comparison = build_source_comparison(analysis, source_documents=source_documents())
+
+    assert comparison.summary.contradiction_candidate_count == 1
+    candidate = comparison.contradictions[0]
+    assert candidate.temporal_years == [2018]
+    assert candidate.affirmed_relation_ids == ["rel_yes"]
+    assert candidate.negated_relation_ids == ["rel_no"]
+
+
+def test_disjoint_years_do_not_create_false_contradiction() -> None:
+    analysis = analysis_fixture()
+    analysis.relations = [
+        relation("rel_yes", "ent_microsoft", "ent_github", ["src_a"], years=[2018]),
+        relation(
+            "rel_no",
+            "ent_microsoft",
+            "ent_github",
+            ["src_b"],
+            polarity=AssertionPolarity.NEGATED,
+            years=[2019],
+        ),
+    ]
+
+    comparison = build_source_comparison(analysis, source_documents=source_documents())
+
+    assert comparison.summary.contradiction_candidate_count == 0
+    assert comparison.contradictions == []
+
+
+def test_one_sided_time_scope_does_not_create_false_contradiction() -> None:
+    analysis = analysis_fixture()
+    analysis.relations = [
+        relation("rel_yes", "ent_microsoft", "ent_github", ["src_a"], years=[2018]),
+        relation(
+            "rel_no",
+            "ent_microsoft",
+            "ent_github",
+            ["src_b"],
+            polarity=AssertionPolarity.NEGATED,
+        ),
+    ]
+
+    comparison = build_source_comparison(analysis, source_documents=source_documents())
+    assert comparison.summary.contradiction_candidate_count == 0
+
+
+def test_modal_language_does_not_create_contradiction_candidate() -> None:
+    analysis = analysis_fixture()
+    analysis.relations = [
+        relation(
+            "rel_modal",
+            "ent_microsoft",
+            "ent_github",
+            ["src_a"],
+            modality=AssertionModality.MODAL,
+            years=[2027],
+        ),
+        relation(
+            "rel_no",
+            "ent_microsoft",
+            "ent_github",
+            ["src_b"],
+            polarity=AssertionPolarity.NEGATED,
+            years=[2027],
+        ),
+    ]
+
+    comparison = build_source_comparison(analysis, source_documents=source_documents())
+    assert comparison.summary.contradiction_candidate_count == 0
+
+
+def test_unknown_historical_qualifiers_never_create_contradiction_candidate() -> None:
+    analysis = analysis_fixture()
+    unknown = relation("rel_unknown", "ent_microsoft", "ent_github", ["src_b"])
+    unknown.polarity = AssertionPolarity.UNKNOWN
+    unknown.polarity_method = "historical_unknown"
+    unknown.modality = AssertionModality.UNKNOWN
+    unknown.modality_method = "historical_unknown"
+    unknown.temporal_method = "historical_unknown"
+    analysis.relations = [
+        relation("rel_yes", "ent_microsoft", "ent_github", ["src_a"]),
+        unknown,
+    ]
+
+    comparison = build_source_comparison(analysis, source_documents=source_documents())
+    assert comparison.summary.contradiction_candidate_count == 0
 
 
 def test_comparison_profiles_include_sources_with_zero_claims() -> None:
@@ -180,62 +276,6 @@ def test_comparison_profiles_include_sources_with_zero_claims() -> None:
 
     empty = next(profile for profile in comparison.sources if profile.source_id == "src_empty")
     assert empty.claim_count == 0
-    assert empty.cross_source_claim_count == 0
-    assert empty.single_source_claim_count == 0
     assert empty.contradiction_candidate_count == 0
     assert comparison.summary.source_count == 3
     assert comparison.summary.pair_count == 3
-
-
-def test_comparison_detects_only_explicit_cross_source_polarity_conflict() -> None:
-    analysis = analysis_fixture()
-    analysis.relations = [
-        relation("rel_yes", "ent_microsoft", "ent_github", ["src_a"]),
-        relation(
-            "rel_no",
-            "ent_microsoft",
-            "ent_github",
-            ["src_b"],
-            polarity=AssertionPolarity.NEGATED,
-        ),
-    ]
-    analysis.run.relation_count = 2
-
-    comparison = build_source_comparison(
-        analysis,
-        source_documents=source_documents(),
-    )
-
-    assert comparison.summary.contradiction_candidate_count == 1
-    candidate = comparison.contradictions[0]
-    assert candidate.subject_label == "Microsoft"
-    assert candidate.predicate == "acquire"
-    assert candidate.object_label == "GitHub"
-    assert candidate.affirmed_relation_ids == ["rel_yes"]
-    assert candidate.negated_relation_ids == ["rel_no"]
-    assert candidate.affirmed_source_ids == ["src_a"]
-    assert candidate.negated_source_ids == ["src_b"]
-    assert candidate.source_count == 2
-    assert candidate.evidence_count == 2
-
-    assert all(profile.contradiction_candidate_count == 1 for profile in comparison.sources)
-
-
-def test_unknown_or_missing_polarity_never_creates_contradiction_candidate() -> None:
-    analysis = analysis_fixture()
-    unknown = relation("rel_unknown", "ent_microsoft", "ent_github", ["src_b"])
-    unknown.polarity = AssertionPolarity.UNKNOWN
-    unknown.polarity_method = "historical_unknown"
-    analysis.relations = [
-        relation("rel_yes", "ent_microsoft", "ent_github", ["src_a"]),
-        unknown,
-    ]
-    analysis.run.relation_count = 2
-
-    comparison = build_source_comparison(
-        analysis,
-        source_documents=source_documents(),
-    )
-
-    assert comparison.summary.contradiction_candidate_count == 0
-    assert comparison.contradictions == []

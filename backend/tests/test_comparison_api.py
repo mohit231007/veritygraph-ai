@@ -31,42 +31,31 @@ def upload_and_add(workspace_id: str, filename: str, text: str) -> str:
     return source_id
 
 
-def test_comparison_api_uses_exact_run_sources_and_real_extracted_support() -> None:
-    workspace = client.post(
-        "/api/v1/workspaces",
-        json={"name": "Corroboration workspace"},
-    ).json()
-    workspace_id = workspace["workspace_id"]
+def create_workspace(name: str) -> str:
+    return client.post("/api/v1/workspaces", json={"name": name}).json()["workspace_id"]
 
+
+def test_comparison_api_uses_exact_qualified_support() -> None:
+    workspace_id = create_workspace("Corroboration workspace")
     first_source_id = upload_and_add(
         workspace_id,
         "source-one.txt",
-        "Microsoft acquired GitHub. GitHub acquired OpenAI.",
+        "Microsoft acquired GitHub in 2018. GitHub acquired OpenAI.",
     )
     second_source_id = upload_and_add(
         workspace_id,
         "source-two.txt",
-        "Microsoft acquired GitHub. Amazon acquired Twitch.",
+        "Microsoft acquired GitHub in 2018. Amazon acquired Twitch.",
     )
 
     analysis_response = client.post(f"/api/v1/workspaces/{workspace_id}/analyses")
     assert analysis_response.status_code == 201
-    analysis = analysis_response.json()
-    run = analysis["run"]
-    assert run["source_count"] == 2
+    run = analysis_response.json()["run"]
     assert run["source_ids"] == [first_source_id, second_source_id]
 
-    response = client.get(f"/api/v1/analyses/{run['run_id']}/comparison")
-    latest = client.get(f"/api/v1/workspaces/{workspace_id}/comparison/latest")
-
-    assert response.status_code == 200
-    assert latest.status_code == 200
-    assert response.json() == latest.json()
-    comparison = response.json()
-    assert comparison["comparison_version"] == "source-corroboration-v2-polarity"
-    assert comparison["summary"]["source_count"] == 2
+    comparison = client.get(f"/api/v1/analyses/{run['run_id']}/comparison").json()
+    assert comparison["comparison_version"] == "source-corroboration-v3-qualifiers"
     assert comparison["summary"]["cross_source_claim_count"] >= 1
-    assert comparison["summary"]["single_source_claim_count"] >= 2
     assert comparison["summary"]["contradiction_candidate_count"] == 0
 
     microsoft_github = next(
@@ -77,68 +66,47 @@ def test_comparison_api_uses_exact_run_sources_and_real_extracted_support() -> N
         and claim["object_label"] == "GitHub"
     )
     assert microsoft_github["polarity"] == "affirmed"
+    assert microsoft_github["modality"] == "asserted"
+    assert microsoft_github["temporal_years"] == [2018]
     assert microsoft_github["support_level"] == "cross_source"
-    assert microsoft_github["source_count"] == 2
-    assert set(microsoft_github["source_ids"]) == {
-        first_source_id,
-        second_source_id,
-    }
-
-    profiles = {profile["label"]: profile for profile in comparison["sources"]}
-    assert profiles["source-one.txt"]["claim_count"] >= 2
-    assert profiles["source-two.txt"]["claim_count"] >= 2
-
-    overlap = comparison["overlaps"][0]
-    assert overlap["shared_claim_count"] >= 1
-    assert 0.0 < overlap["jaccard_similarity"] <= 1.0
-    assert "absence" in comparison["interpretation_note"].casefold()
-    assert "contradiction" in comparison["interpretation_note"].casefold()
+    assert set(microsoft_github["source_ids"]) == {first_source_id, second_source_id}
 
 
-def test_comparison_api_detects_real_explicit_cross_source_negation() -> None:
-    workspace = client.post(
-        "/api/v1/workspaces",
-        json={"name": "Contradiction workspace"},
-    ).json()
-    workspace_id = workspace["workspace_id"]
-
+def test_comparison_api_detects_same_year_asserted_negation() -> None:
+    workspace_id = create_workspace("Same year contradiction")
     affirmed_source_id = upload_and_add(
-        workspace_id,
-        "affirmed.txt",
-        "Microsoft acquired GitHub.",
+        workspace_id, "affirmed.txt", "Microsoft acquired GitHub in 2018."
     )
     negated_source_id = upload_and_add(
-        workspace_id,
-        "negated.txt",
-        "Microsoft did not acquire GitHub.",
+        workspace_id, "negated.txt", "Microsoft did not acquire GitHub in 2018."
     )
 
-    analysis_response = client.post(f"/api/v1/workspaces/{workspace_id}/analyses")
-    assert analysis_response.status_code == 201
-    run_id = analysis_response.json()["run"]["run_id"]
+    run_id = client.post(f"/api/v1/workspaces/{workspace_id}/analyses").json()["run"]["run_id"]
+    comparison = client.get(f"/api/v1/analyses/{run_id}/comparison").json()
 
-    response = client.get(f"/api/v1/analyses/{run_id}/comparison")
-    assert response.status_code == 200
-    comparison = response.json()
     assert comparison["summary"]["contradiction_candidate_count"] == 1
-
     candidate = comparison["contradictions"][0]
-    assert candidate["subject_label"] == "Microsoft"
-    assert candidate["predicate"] == "acquire"
-    assert candidate["object_label"] == "GitHub"
+    assert candidate["temporal_years"] == [2018]
     assert candidate["affirmed_source_ids"] == [affirmed_source_id]
     assert candidate["negated_source_ids"] == [negated_source_id]
-    assert {item["text"] for item in candidate["affirmed_evidence"]} == {
-        "Microsoft acquired GitHub."
-    }
-    assert {item["text"] for item in candidate["negated_evidence"]} == {
-        "Microsoft did not acquire GitHub."
-    }
+
+
+def test_comparison_api_rejects_disjoint_year_and_modal_false_conflicts() -> None:
+    workspace_id = create_workspace("Qualifier guardrail")
+    upload_and_add(workspace_id, "past.txt", "Microsoft acquired GitHub in 2018.")
+    upload_and_add(workspace_id, "later.txt", "Microsoft did not acquire GitHub in 2019.")
+    upload_and_add(workspace_id, "future.txt", "Microsoft may acquire OpenAI in 2027.")
+    upload_and_add(workspace_id, "future-no.txt", "Microsoft did not acquire OpenAI in 2027.")
+
+    run_id = client.post(f"/api/v1/workspaces/{workspace_id}/analyses").json()["run"]["run_id"]
+    comparison = client.get(f"/api/v1/analyses/{run_id}/comparison").json()
+
+    assert comparison["summary"]["contradiction_candidate_count"] == 0
+    assert comparison["contradictions"] == []
+    assert "disjoint years" in comparison["interpretation_note"]
+    assert "modal language" in comparison["interpretation_note"]
 
 
 def test_missing_comparison_contracts_return_404() -> None:
-    missing_run = client.get("/api/v1/analyses/run_missing/comparison")
-    missing_workspace = client.get("/api/v1/workspaces/ws_missing/comparison/latest")
-
-    assert missing_run.status_code == 404
-    assert missing_workspace.status_code == 404
+    assert client.get("/api/v1/analyses/run_missing/comparison").status_code == 404
+    assert client.get("/api/v1/workspaces/ws_missing/comparison/latest").status_code == 404

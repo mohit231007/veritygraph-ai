@@ -4,7 +4,11 @@ from collections import defaultdict
 
 import networkx as nx
 
-from app.domain.analysis import AssertionPolarity, WorkspaceAnalysis
+from app.domain.analysis import (
+    AssertionModality,
+    AssertionPolarity,
+    WorkspaceAnalysis,
+)
 from app.domain.graph import (
     EvidenceGraph,
     GraphEdge,
@@ -14,11 +18,15 @@ from app.domain.graph import (
     GraphSummary,
 )
 
-GRAPH_VERSION = "evidence-graph-v2-polarity"
+GRAPH_VERSION = "evidence-graph-v3-qualifiers"
 
 
 class GraphPathNotFoundError(ValueError):
     """Raised when two requested entities are not connected in the analysis graph."""
+
+
+def _is_structural_relation(polarity: AssertionPolarity, modality: AssertionModality) -> bool:
+    return polarity != AssertionPolarity.NEGATED and modality != AssertionModality.MODAL
 
 
 def _analytics_projection(analysis: WorkspaceAnalysis) -> nx.DiGraph:
@@ -27,9 +35,9 @@ def _analytics_projection(analysis: WorkspaceAnalysis) -> nx.DiGraph:
         graph.add_node(entity.entity_id)
 
     for relation in analysis.relations:
-        # A negated assertion is retained as evidence but must not masquerade as a
-        # positive relationship in structural analytics or connection paths.
-        if relation.polarity == AssertionPolarity.NEGATED:
+        # Explicit negation and modal/future assertions remain inspectable evidence,
+        # but neither is allowed to masquerade as an established graph relationship.
+        if not _is_structural_relation(relation.polarity, relation.modality):
             continue
         support = max(1, len(relation.evidence))
         source_id = relation.subject_entity_id
@@ -101,6 +109,10 @@ def build_evidence_graph(analysis: WorkspaceAnalysis) -> EvidenceGraph:
             predicate=relation.predicate,
             polarity=relation.polarity,
             polarity_method=relation.polarity_method,
+            modality=relation.modality,
+            modality_method=relation.modality_method,
+            temporal_years=relation.temporal_years,
+            temporal_method=relation.temporal_method,
             extraction_score=relation.extraction_score,
             extraction_method=relation.extraction_method,
             evidence_count=len(relation.evidence),
@@ -111,10 +123,11 @@ def build_evidence_graph(analysis: WorkspaceAnalysis) -> EvidenceGraph:
     ]
     edges.sort(
         key=lambda edge: (
-            edge.polarity == AssertionPolarity.NEGATED,
+            not _is_structural_relation(edge.polarity, edge.modality),
             -edge.evidence_count,
             -edge.extraction_score,
             edge.predicate,
+            tuple(edge.temporal_years),
         )
     )
 
@@ -145,7 +158,7 @@ def shortest_connection_path(
     source_entity_id: str,
     target_entity_id: str,
 ) -> GraphPath:
-    """Return the fewest-hop undirected positive/unknown connection path."""
+    """Return the fewest-hop undirected established/legacy connection path."""
 
     projection = _analytics_projection(analysis)
     if source_entity_id not in projection or target_entity_id not in projection:
@@ -163,7 +176,7 @@ def shortest_connection_path(
 
     relations_by_pair: dict[frozenset[str], list[str]] = defaultdict(list)
     for relation in analysis.relations:
-        if relation.polarity == AssertionPolarity.NEGATED:
+        if not _is_structural_relation(relation.polarity, relation.modality):
             continue
         pair = frozenset({relation.subject_entity_id, relation.object_entity_id})
         relations_by_pair[pair].append(relation.relation_id)

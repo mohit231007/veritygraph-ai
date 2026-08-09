@@ -21,10 +21,17 @@ function percent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function assertionVerb(claim: Pick<ComparisonClaim, "predicate" | "polarity">) {
-  if (claim.polarity === "negated") return `NOT ${claim.predicate}`;
-  if (claim.polarity === "unknown") return `? ${claim.predicate}`;
-  return claim.predicate;
+function assertionVerb(
+  claim: Pick<ComparisonClaim, "predicate" | "polarity" | "modality">,
+) {
+  const predicate = claim.polarity === "negated" ? `NOT ${claim.predicate}` : claim.predicate;
+  if (claim.modality === "modal") return `MODAL ${predicate}`;
+  if (claim.polarity === "unknown" || claim.modality === "unknown") return `? ${predicate}`;
+  return predicate;
+}
+
+function yearLabel(years: number[]) {
+  return years.length > 0 ? `Year ${years.join(", ")}` : "No explicit year";
 }
 
 export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Props) {
@@ -54,7 +61,7 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
     }
 
     const controller = new AbortController();
-    setMessage("Comparing exact relation support and assertion polarity across this run's sources…");
+    setMessage("Comparing qualified assertions across this run's exact sources…");
 
     async function loadComparison() {
       try {
@@ -84,16 +91,10 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
   return (
     <section className="comparison-panel" aria-labelledby="comparison-heading" data-testid="comparison-panel">
       <div className="comparison-heading">
-        <div>
-          <p className="section-label">SOURCE COMPARISON</p>
-          <h2 id="comparison-heading">Corroboration and explicit evidence conflict</h2>
-        </div>
+        <div><p className="section-label">SOURCE COMPARISON</p><h2 id="comparison-heading">Corroboration and scoped evidence conflict</h2></div>
         {comparison && <span className="comparison-version">{comparison.comparison_version}</span>}
       </div>
-
-      <p className="comparison-status" aria-live="polite" data-testid="comparison-status">
-        {message}
-      </p>
+      <p className="comparison-status" aria-live="polite" data-testid="comparison-status">{message}</p>
 
       {comparison && (
         <>
@@ -106,42 +107,21 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
           </div>
 
           <aside className="comparison-guardrail" data-testid="comparison-guardrail">
-            <strong>Missing evidence ≠ contradiction.</strong>
+            <strong>Silence, modality, or different time scope ≠ contradiction.</strong>
             <p>{comparison.interpretation_note}</p>
           </aside>
 
           {comparison.contradictions.length > 0 && (
             <section className="contradiction-section" aria-labelledby="contradiction-heading" data-testid="contradiction-list">
-              <div className="comparison-subheading">
-                <div>
-                  <h3 id="contradiction-heading">Contradiction candidates</h3>
-                  <span>Same resolved assertion · opposing explicit polarity · evidence shown on both sides</span>
-                </div>
-              </div>
+              <div className="comparison-subheading"><div><h3 id="contradiction-heading">Contradiction candidates</h3><span>Asserted only · compatible explicit time scope · evidence on both sides</span></div></div>
               <div className="contradiction-list">
                 {comparison.contradictions.map((candidate) => (
                   <article key={candidate.assertion_key} data-testid="contradiction-candidate">
                     <h4>{candidate.subject_label} <span>{candidate.predicate}</span> {candidate.object_label}</h4>
-                    <p>{candidate.source_count} sources · {candidate.evidence_count} evidence records · candidate only, not a truth verdict</p>
+                    <p>{yearLabel(candidate.temporal_years)} · {candidate.source_count} sources · {candidate.evidence_count} evidence records · candidate only, not a truth verdict</p>
                     <div className="contradiction-sides">
-                      <div>
-                        <strong>AFFIRMED</strong>
-                        {candidate.affirmed_evidence.map((evidence) => (
-                          <blockquote key={evidence.evidence_id}>
-                            <p>“{evidence.text}”</p>
-                            <footer>{sourceLabels.get(evidence.source_id) ?? evidence.source_id} · {evidence.span_id}</footer>
-                          </blockquote>
-                        ))}
-                      </div>
-                      <div>
-                        <strong>NEGATED</strong>
-                        {candidate.negated_evidence.map((evidence) => (
-                          <blockquote key={evidence.evidence_id}>
-                            <p>“{evidence.text}”</p>
-                            <footer>{sourceLabels.get(evidence.source_id) ?? evidence.source_id} · {evidence.span_id}</footer>
-                          </blockquote>
-                        ))}
-                      </div>
+                      <div><strong>AFFIRMED</strong>{candidate.affirmed_evidence.map((evidence) => <blockquote key={evidence.evidence_id}><p>“{evidence.text}”</p><footer>{sourceLabels.get(evidence.source_id) ?? evidence.source_id} · {evidence.span_id}</footer></blockquote>)}</div>
+                      <div><strong>NEGATED</strong>{candidate.negated_evidence.map((evidence) => <blockquote key={evidence.evidence_id}><p>“{evidence.text}”</p><footer>{sourceLabels.get(evidence.source_id) ?? evidence.source_id} · {evidence.span_id}</footer></blockquote>)}</div>
                     </div>
                   </article>
                 ))}
@@ -152,14 +132,8 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
           <div className="source-profile-grid" data-testid="source-profile-list">
             {comparison.sources.map((source) => (
               <article key={source.source_id}>
-                <span>{source.source_type?.replaceAll("_", " ") ?? "historical source"}</span>
-                <strong>{source.label}</strong>
-                <dl>
-                  <div><dt>Claims</dt><dd>{source.claim_count}</dd></div>
-                  <div><dt>Corroborated</dt><dd>{source.cross_source_claim_count}</dd></div>
-                  <div><dt>Only here</dt><dd>{source.single_source_claim_count}</dd></div>
-                  <div><dt>Conflicts</dt><dd>{source.contradiction_candidate_count}</dd></div>
-                </dl>
+                <span>{source.source_type?.replaceAll("_", " ") ?? "historical source"}</span><strong>{source.label}</strong>
+                <dl><div><dt>Claims</dt><dd>{source.claim_count}</dd></div><div><dt>Corroborated</dt><dd>{source.cross_source_claim_count}</dd></div><div><dt>Only here</dt><dd>{source.single_source_claim_count}</dd></div><div><dt>Conflicts</dt><dd>{source.contradiction_candidate_count}</dd></div></dl>
               </article>
             ))}
           </div>
@@ -167,49 +141,22 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
           <div className="comparison-workbench">
             <section className="claim-browser" aria-labelledby="claim-browser-heading">
               <div className="comparison-subheading">
-                <div>
-                  <h3 id="claim-browser-heading">Resolved assertions</h3>
-                  <span>Same canonical subject · predicate · object · polarity</span>
-                </div>
+                <div><h3 id="claim-browser-heading">Resolved qualified assertions</h3><span>Subject · predicate · object · polarity · modality · year scope</span></div>
                 <div className="comparison-filters" role="group" aria-label="Claim support filter">
                   {(["all", "cross_source", "single_source"] as const).map((value) => (
-                    <button
-                      type="button"
-                      key={value}
-                      aria-pressed={filter === value}
-                      data-testid={`comparison-filter-${value}`}
-                      onClick={() => setFilter(value)}
-                    >
+                    <button type="button" key={value} aria-pressed={filter === value} data-testid={`comparison-filter-${value}`} onClick={() => setFilter(value)}>
                       {value === "all" ? "All" : value === "cross_source" ? "Cross-source" : "Single-source"}
                     </button>
                   ))}
                 </div>
               </div>
-
               <div className="comparison-claim-list" data-testid="comparison-claim-list">
                 {visibleClaims.map((claim) => (
-                  <button
-                    type="button"
-                    key={claim.relation_id}
-                    className={selectedClaim?.relation_id === claim.relation_id ? "selected" : ""}
-                    onClick={() => setSelectedClaim(claim)}
-                  >
-                    <div>
-                      <strong>{claim.subject_label}</strong>
-                      <span>{assertionVerb(claim)}</span>
-                      <strong>{claim.object_label}</strong>
-                    </div>
-                    <small>
-                      {claim.polarity.toUpperCase()}
-                      {" · "}{claim.support_level === "cross_source" ? "Cross-source" : "Single-source"}
-                      {" · "}{claim.source_count} source{claim.source_count === 1 ? "" : "s"}
-                      {" · "}{claim.evidence_count} evidence
-                    </small>
+                  <button type="button" key={claim.relation_id} className={selectedClaim?.relation_id === claim.relation_id ? "selected" : ""} onClick={() => setSelectedClaim(claim)}>
+                    <div><strong>{claim.subject_label}</strong><span>{assertionVerb(claim)}</span><strong>{claim.object_label}</strong></div>
+                    <small>{claim.polarity.toUpperCase()} · {claim.modality.toUpperCase()} · {yearLabel(claim.temporal_years)} · {claim.support_level === "cross_source" ? "Cross-source" : "Single-source"} · {claim.source_count} source{claim.source_count === 1 ? "" : "s"}</small>
                   </button>
                 ))}
-                {visibleClaims.length === 0 && (
-                  <p className="comparison-empty">No claims match this support filter.</p>
-                )}
               </div>
             </section>
 
@@ -217,54 +164,20 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
               {!selectedClaim && <p>Select an assertion to inspect its retained source evidence.</p>}
               {selectedClaim && (
                 <div data-testid="comparison-claim-detail">
-                  <p className="comparison-kicker">
-                    {selectedClaim.polarity.toUpperCase()} · {selectedClaim.support_level === "cross_source" ? "CROSS-SOURCE SUPPORT" : "SINGLE-SOURCE EVIDENCE"}
-                  </p>
-                  <h3>
-                    {selectedClaim.subject_label} <span>{assertionVerb(selectedClaim)}</span> {selectedClaim.object_label}
-                  </h3>
-                  <p>
-                    {selectedClaim.source_count} source{selectedClaim.source_count === 1 ? "" : "s"}
-                    {" · "}{selectedClaim.evidence_count} evidence record{selectedClaim.evidence_count === 1 ? "" : "s"}
-                    {" · "}rule score {Math.round(selectedClaim.extraction_score * 100)}
-                    {" · "}{selectedClaim.polarity_method}
-                  </p>
-                  <div className="comparison-evidence-list">
-                    {selectedClaim.evidence.map((evidence) => (
-                      <blockquote key={evidence.evidence_id}>
-                        <p>“{evidence.text}”</p>
-                        <footer>{sourceLabels.get(evidence.source_id) ?? evidence.source_id} · {evidence.span_id}</footer>
-                      </blockquote>
-                    ))}
-                  </div>
+                  <p className="comparison-kicker">{selectedClaim.polarity.toUpperCase()} · {selectedClaim.modality.toUpperCase()} · {yearLabel(selectedClaim.temporal_years)} · {selectedClaim.support_level === "cross_source" ? "CROSS-SOURCE SUPPORT" : "SINGLE-SOURCE EVIDENCE"}</p>
+                  <h3>{selectedClaim.subject_label} <span>{assertionVerb(selectedClaim)}</span> {selectedClaim.object_label}</h3>
+                  <p>{selectedClaim.source_count} source{selectedClaim.source_count === 1 ? "" : "s"} · {selectedClaim.evidence_count} evidence · rule score {Math.round(selectedClaim.extraction_score * 100)}</p>
+                  <div className="comparison-evidence-list">{selectedClaim.evidence.map((evidence) => <blockquote key={evidence.evidence_id}><p>“{evidence.text}”</p><footer>{sourceLabels.get(evidence.source_id) ?? evidence.source_id} · {evidence.span_id}</footer></blockquote>)}</div>
                 </div>
               )}
             </aside>
           </div>
 
           <section className="overlap-section" aria-labelledby="overlap-heading">
-            <div className="comparison-subheading">
-              <div>
-                <h3 id="overlap-heading">Pairwise claim overlap</h3>
-                <span>Jaccard similarity over extracted resolved relation IDs</span>
-              </div>
-            </div>
+            <div className="comparison-subheading"><div><h3 id="overlap-heading">Pairwise claim overlap</h3><span>Exact qualified relation IDs</span></div></div>
             <div className="overlap-list" data-testid="overlap-list">
-              {comparison.overlaps.map((overlap) => (
-                <article key={`${overlap.left_source_id}-${overlap.right_source_id}`}>
-                  <div>
-                    <strong>{sourceLabels.get(overlap.left_source_id) ?? overlap.left_source_id}</strong>
-                    <span>↔</span>
-                    <strong>{sourceLabels.get(overlap.right_source_id) ?? overlap.right_source_id}</strong>
-                  </div>
-                  <p>
-                    {overlap.shared_claim_count} shared / {overlap.union_claim_count} union · {percent(overlap.jaccard_similarity)} overlap
-                  </p>
-                </article>
-              ))}
-              {comparison.overlaps.length === 0 && (
-                <p className="comparison-empty">Add at least two sources to compute pairwise overlap.</p>
-              )}
+              {comparison.overlaps.map((overlap) => <article key={`${overlap.left_source_id}-${overlap.right_source_id}`}><div><strong>{sourceLabels.get(overlap.left_source_id) ?? overlap.left_source_id}</strong><span>↔</span><strong>{sourceLabels.get(overlap.right_source_id) ?? overlap.right_source_id}</strong></div><p>{overlap.shared_claim_count} shared / {overlap.union_claim_count} union · {percent(overlap.jaccard_similarity)} overlap</p></article>)}
+              {comparison.overlaps.length === 0 && <p className="comparison-empty">Add at least two sources to compute pairwise overlap.</p>}
             </div>
           </section>
         </>

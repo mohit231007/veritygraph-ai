@@ -23,10 +23,15 @@ function entityAliases(entity: AnalysisEntity) {
   );
 }
 
-function assertionVerb(relation: Pick<AnalysisRelation, "predicate" | "polarity">) {
-  if (relation.polarity === "negated") return `NOT ${relation.predicate}`;
-  if (relation.polarity === "unknown") return `? ${relation.predicate}`;
-  return relation.predicate;
+function assertionVerb(relation: Pick<AnalysisRelation, "predicate" | "polarity" | "modality">) {
+  const predicate = relation.polarity === "negated" ? `NOT ${relation.predicate}` : relation.predicate;
+  if (relation.modality === "modal") return `MODAL ${predicate}`;
+  if (relation.polarity === "unknown" || relation.modality === "unknown") return `? ${predicate}`;
+  return predicate;
+}
+
+function yearLabel(years: number[]) {
+  return years.length > 0 ? `Year ${years.join(", ")}` : "No explicit year";
 }
 
 export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange }: Props) {
@@ -55,10 +60,9 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
 
     async function loadLatest() {
       try {
-        const response = await fetch(
-          `/api/v1/workspaces/${workspaceId}/analyses/latest`,
-          { signal: controller.signal },
-        );
+        const response = await fetch(`/api/v1/workspaces/${workspaceId}/analyses/latest`, {
+          signal: controller.signal,
+        });
         if (response.status === 404) {
           setAnalysis(null);
           onAnalysisChange(null);
@@ -85,14 +89,12 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
 
   async function runAnalysis() {
     if (!workspace || workspace.source_count === 0) return;
-
     setState("loading");
-    setMessage("Running local NER, relationship extraction, assertion polarity and deterministic alias resolution…");
+    setMessage("Running local NER, relations, polarity, modality, year qualifiers and alias resolution…");
     try {
-      const response = await fetch(
-        `/api/v1/workspaces/${workspace.workspace_id}/analyses`,
-        { method: "POST" },
-      );
+      const response = await fetch(`/api/v1/workspaces/${workspace.workspace_id}/analyses`, {
+        method: "POST",
+      });
       const payload = (await response.json()) as WorkspaceAnalysis | { detail?: string };
       if (!response.ok) {
         const detail = "detail" in payload && payload.detail ? payload.detail : "Analysis failed.";
@@ -112,32 +114,16 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
   return (
     <section className="analysis-panel" aria-labelledby="analysis-heading" data-testid="analysis-panel">
       <div className="analysis-heading">
-        <div>
-          <p className="section-label">ANALYSIS ENGINE</p>
-          <h2 id="analysis-heading">Evidence-linked NLP baseline</h2>
-        </div>
-        <button
-          type="button"
-          data-testid="analyse-workspace-button"
-          disabled={!apiHealthy || !workspace || workspace.source_count === 0 || state === "loading"}
-          onClick={() => void runAnalysis()}
-        >
+        <div><p className="section-label">ANALYSIS ENGINE</p><h2 id="analysis-heading">Evidence-linked NLP baseline</h2></div>
+        <button type="button" data-testid="analyse-workspace-button" disabled={!apiHealthy || !workspace || workspace.source_count === 0 || state === "loading"} onClick={() => void runAnalysis()}>
           {state === "loading" ? "Analysing locally…" : analysis ? "Run new analysis" : "Analyse workspace"}
         </button>
       </div>
 
       <div className="analysis-context">
-        <div>
-          <span>Active workspace</span>
-          <strong>{workspace?.name ?? "Select or create a workspace"}</strong>
-        </div>
-        <div>
-          <span>Evidence sources</span>
-          <strong>{workspace?.source_count ?? 0}</strong>
-        </div>
-        <p aria-live="polite" data-testid="analysis-status">
-          {message ?? "Waiting for a workspace."}
-        </p>
+        <div><span>Active workspace</span><strong>{workspace?.name ?? "Select or create a workspace"}</strong></div>
+        <div><span>Evidence sources</span><strong>{workspace?.source_count ?? 0}</strong></div>
+        <p aria-live="polite" data-testid="analysis-status">{message ?? "Waiting for a workspace."}</p>
       </div>
 
       {analysis && (
@@ -159,39 +145,25 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
 
           <div className="analysis-columns">
             <section aria-labelledby="entities-heading">
-              <div className="analysis-subheading">
-                <h3 id="entities-heading">Top entities</h3>
-                <span>Exact mentions + conservative deterministic ORG aliases</span>
-              </div>
+              <div className="analysis-subheading"><h3 id="entities-heading">Top entities</h3><span>Exact mentions + conservative deterministic ORG aliases</span></div>
               <div className="entity-list" data-testid="entity-list">
                 {analysis.entities.slice(0, 12).map((entity) => {
                   const aliases = entityAliases(entity);
                   return (
                     <article key={entity.entity_id}>
                       <div>
-                        <strong>{entity.canonical_name}</strong>
-                        <span>{entity.entity_type}</span>
-                        {aliases.length > 0 && (
-                          <small className="entity-aliases" data-testid="entity-aliases">
-                            Aliases: {aliases.join(", ")}
-                          </small>
-                        )}
+                        <strong>{entity.canonical_name}</strong><span>{entity.entity_type}</span>
+                        {aliases.length > 0 && <small className="entity-aliases" data-testid="entity-aliases">Aliases: {aliases.join(", ")}</small>}
                       </div>
                       <span>{entity.mention_count} mention{entity.mention_count === 1 ? "" : "s"}</span>
                     </article>
                   );
                 })}
-                {analysis.entities.length === 0 && (
-                  <p className="analysis-empty">No selected entity types were detected in this corpus.</p>
-                )}
               </div>
             </section>
 
             <section aria-labelledby="relations-heading">
-              <div className="analysis-subheading">
-                <h3 id="relations-heading">Evidence-linked assertions</h3>
-                <span>Polarity is explicit · rule score ≠ factual probability</span>
-              </div>
+              <div className="analysis-subheading"><h3 id="relations-heading">Evidence-linked assertions</h3><span>Polarity · modality · explicit year scope · rule score ≠ truth</span></div>
               <div className="relation-list" data-testid="relation-list">
                 {analysis.relations.slice(0, 16).map((relation) => (
                   <article className="relation-card" key={relation.relation_id}>
@@ -200,36 +172,24 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
                       <span>{assertionVerb(relation)}</span>
                       <strong>{entityNames.get(relation.object_entity_id) ?? relation.object_entity_id}</strong>
                     </div>
-                    <div className="relation-meta">
+                    <div className="relation-meta" data-testid="relation-qualifiers">
                       <span>{relation.polarity.toUpperCase()}</span>
-                      <span>{relation.polarity_method.replaceAll("_", " ")}</span>
+                      <span>{relation.modality.toUpperCase()}</span>
+                      <span>{yearLabel(relation.temporal_years)}</span>
                       <span>Rule score {Math.round(relation.extraction_score * 100)}</span>
-                      <span>{relation.extraction_method.replaceAll("_", " ")}</span>
                     </div>
                     {relation.evidence.map((evidence) => (
-                      <blockquote key={evidence.evidence_id}>
-                        <p>“{evidence.text}”</p>
-                        <footer>{sourceLabel(workspace, evidence.source_id)} · {evidence.span_id}</footer>
-                      </blockquote>
+                      <blockquote key={evidence.evidence_id}><p>“{evidence.text}”</p><footer>{sourceLabel(workspace, evidence.source_id)} · {evidence.span_id}</footer></blockquote>
                     ))}
                   </article>
                 ))}
-                {analysis.relations.length === 0 && (
-                  <p className="analysis-empty">
-                    No baseline subject/object assertions were found. Evidence is preserved for future extractors.
-                  </p>
-                )}
               </div>
             </section>
           </div>
 
           <aside className="score-callout">
-            <strong>What do polarity and “rule score” mean?</strong>
-            <p>
-              Polarity only records explicit dependency-root negation for new extractions; historical relations
-              without polarity remain unknown. The rule score records which transparent extraction rule fired and
-              its relative strength. Neither field is a probability that the claim is true.
-            </p>
+            <strong>Qualifier guardrail</strong>
+            <p>New runs retain explicit negation, direct modal/future auxiliaries, and four-digit sentence years. Modal claims and disjoint or one-sided time scopes are not promoted to contradiction candidates. These deterministic signals are not truth probabilities.</p>
           </aside>
         </div>
       )}

@@ -28,10 +28,15 @@ function percent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
 
-function edgeLabel(edge: Pick<GraphEdge, "predicate" | "polarity">) {
-  if (edge.polarity === "negated") return `NOT ${edge.predicate}`;
-  if (edge.polarity === "unknown") return `? ${edge.predicate}`;
-  return edge.predicate;
+function edgeLabel(edge: Pick<GraphEdge, "predicate" | "polarity" | "modality">) {
+  const predicate = edge.polarity === "negated" ? `NOT ${edge.predicate}` : edge.predicate;
+  if (edge.modality === "modal") return `MODAL ${predicate}`;
+  if (edge.polarity === "unknown" || edge.modality === "unknown") return `? ${predicate}`;
+  return predicate;
+}
+
+function yearLabel(years: number[]) {
+  return years.length > 0 ? `Year ${years.join(", ")}` : "No explicit year";
 }
 
 export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
@@ -124,6 +129,7 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
             target: edge.target_entity_id,
             label: edgeLabel(edge),
             polarity: edge.polarity,
+            modality: edge.modality,
             evidenceCount: edge.evidence_count,
           },
         })),
@@ -170,6 +176,15 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
             "line-color": "#b27a84",
             "target-arrow-color": "#b27a84",
             color: "#e2a5ae",
+          },
+        },
+        {
+          selector: 'edge[modality = "modal"]',
+          style: {
+            "line-style": "dotted",
+            "line-color": "#a390c8",
+            "target-arrow-color": "#a390c8",
+            color: "#c9b7eb",
           },
         },
         {
@@ -246,7 +261,7 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
 
   async function findPath() {
     if (!analysis || !pathFrom || !pathTo) return;
-    setPathMessage("Computing the fewest-hop positive evidence connection…");
+    setPathMessage("Computing the fewest-hop established evidence connection…");
     const params = new URLSearchParams({
       source_entity_id: pathFrom,
       target_entity_id: pathTo,
@@ -264,7 +279,7 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
       const resolved = payload as GraphPath;
       setPath(resolved);
       setPathMessage(
-        `${resolved.hop_count} hop${resolved.hop_count === 1 ? "" : "s"} in the undirected non-negated evidence graph.`,
+        `${resolved.hop_count} hop${resolved.hop_count === 1 ? "" : "s"} in the undirected established/legacy evidence graph.`,
       );
 
       const instance = cytoscapeRef.current;
@@ -284,35 +299,22 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
   return (
     <section className="graph-panel" aria-labelledby="graph-heading" data-testid="graph-panel">
       <div className="graph-heading">
-        <div>
-          <p className="section-label">EVIDENCE GRAPH</p>
-          <h2 id="graph-heading">Connected intelligence with inspectable lineage</h2>
-        </div>
+        <div><p className="section-label">EVIDENCE GRAPH</p><h2 id="graph-heading">Connected intelligence with inspectable lineage</h2></div>
         <label>
           Layout
-          <select
-            value={layout}
-            disabled={!graph}
-            data-testid="graph-layout-select"
-            onChange={(event) => changeLayout(event.target.value as LayoutName)}
-          >
-            <option value="cose">Force-directed</option>
-            <option value="circle">Circle</option>
-            <option value="breadthfirst">Breadth-first</option>
+          <select value={layout} disabled={!graph} data-testid="graph-layout-select" onChange={(event) => changeLayout(event.target.value as LayoutName)}>
+            <option value="cose">Force-directed</option><option value="circle">Circle</option><option value="breadthfirst">Breadth-first</option>
           </select>
         </label>
       </div>
-
-      <p className="graph-status" aria-live="polite" data-testid="graph-status">
-        {statusMessage}
-      </p>
+      <p className="graph-status" aria-live="polite" data-testid="graph-status">{statusMessage}</p>
 
       {graph && (
         <>
           <div className="graph-metrics" data-testid="graph-metrics">
             <article><span>Entities</span><strong>{graph.summary.node_count}</strong></article>
             <article><span>Assertions</span><strong>{graph.summary.edge_count}</strong></article>
-            <article><span>Positive density</span><strong>{percent(graph.summary.density)}</strong></article>
+            <article><span>Established density</span><strong>{percent(graph.summary.density)}</strong></article>
             <article><span>Components</span><strong>{graph.summary.weak_component_count}</strong></article>
             <article><span>Communities</span><strong>{graph.summary.community_count}</strong></article>
           </div>
@@ -320,60 +322,25 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
           <div className="graph-workbench">
             <div className="graph-canvas-wrap">
               <div ref={containerRef} className="graph-canvas" data-testid="graph-canvas" />
-              <p className="graph-legend">
-                Node analytics use non-negated evidence only · dashed NOT edges remain inspectable but never create positive paths.
-              </p>
+              <p className="graph-legend" data-testid="graph-qualifier-legend">Analytics exclude explicit NOT and MODAL assertions · dashed/dotted edges remain inspectable · historical unknown qualifiers keep legacy graph behavior.</p>
             </div>
 
             <aside className="graph-inspector" data-testid="graph-inspector">
-              {!selectedNode && !selectedEdge && (
-                <div className="inspector-empty">
-                  <strong>Inspect the graph</strong>
-                  <p>Select an entity or assertion on the canvas or from the evidence lists below.</p>
-                </div>
-              )}
-
+              {!selectedNode && !selectedEdge && <div className="inspector-empty"><strong>Inspect the graph</strong><p>Select an entity or assertion on the canvas or from the evidence lists below.</p></div>}
               {selectedNode && (
                 <div data-testid="graph-node-detail">
-                  <p className="inspector-kicker">ENTITY</p>
-                  <h3>{selectedNode.label}</h3>
-                  <p>{selectedNode.entity_type} · community {selectedNode.community + 1}</p>
-                  <dl>
-                    <div><dt>Mentions</dt><dd>{selectedNode.mention_count}</dd></div>
-                    <div><dt>Sources</dt><dd>{selectedNode.source_count}</dd></div>
-                    <div><dt>In / out degree</dt><dd>{selectedNode.in_degree} / {selectedNode.out_degree}</dd></div>
-                    <div><dt>PageRank</dt><dd>{selectedNode.pagerank.toFixed(4)}</dd></div>
-                    <div><dt>Betweenness</dt><dd>{selectedNode.betweenness.toFixed(4)}</dd></div>
-                  </dl>
+                  <p className="inspector-kicker">ENTITY</p><h3>{selectedNode.label}</h3><p>{selectedNode.entity_type} · community {selectedNode.community + 1}</p>
+                  <dl><div><dt>Mentions</dt><dd>{selectedNode.mention_count}</dd></div><div><dt>Sources</dt><dd>{selectedNode.source_count}</dd></div><div><dt>In / out degree</dt><dd>{selectedNode.in_degree} / {selectedNode.out_degree}</dd></div><div><dt>PageRank</dt><dd>{selectedNode.pagerank.toFixed(4)}</dd></div><div><dt>Betweenness</dt><dd>{selectedNode.betweenness.toFixed(4)}</dd></div></dl>
                 </div>
               )}
-
               {selectedEdge && (
                 <div data-testid="graph-edge-detail">
-                  <p className="inspector-kicker">ASSERTION + EVIDENCE</p>
-                  <h3>
-                    {nodeById.get(selectedEdge.source_entity_id)?.label ?? selectedEdge.source_entity_id}
-                    <span> {edgeLabel(selectedEdge)} </span>
-                    {nodeById.get(selectedEdge.target_entity_id)?.label ?? selectedEdge.target_entity_id}
-                  </h3>
-                  <p>
-                    {selectedEdge.polarity.toUpperCase()} · {selectedEdge.polarity_method.replaceAll("_", " ")}
-                  </p>
-                  <p>
-                    {selectedEdge.evidence_count} evidence record{selectedEdge.evidence_count === 1 ? "" : "s"}
-                    {" · "}{selectedEdge.source_count} source{selectedEdge.source_count === 1 ? "" : "s"}
-                  </p>
-                  <p>
-                    Rule score {Math.round(selectedEdge.extraction_score * 100)} · {selectedEdge.extraction_method.replaceAll("_", " ")}
-                  </p>
-                  <div className="graph-evidence-list">
-                    {selectedEdge.evidence.map((evidence) => (
-                      <blockquote key={evidence.evidence_id}>
-                        <p>“{evidence.text}”</p>
-                        <footer>{sourceLabel(workspace, evidence.source_id)} · {evidence.span_id}</footer>
-                      </blockquote>
-                    ))}
-                  </div>
+                  <p className="inspector-kicker">QUALIFIED ASSERTION + EVIDENCE</p>
+                  <h3>{nodeById.get(selectedEdge.source_entity_id)?.label ?? selectedEdge.source_entity_id}<span> {edgeLabel(selectedEdge)} </span>{nodeById.get(selectedEdge.target_entity_id)?.label ?? selectedEdge.target_entity_id}</h3>
+                  <p data-testid="graph-edge-qualifiers">{selectedEdge.polarity.toUpperCase()} · {selectedEdge.modality.toUpperCase()} · {yearLabel(selectedEdge.temporal_years)}</p>
+                  <p>{selectedEdge.evidence_count} evidence record{selectedEdge.evidence_count === 1 ? "" : "s"} · {selectedEdge.source_count} source{selectedEdge.source_count === 1 ? "" : "s"}</p>
+                  <p>Rule score {Math.round(selectedEdge.extraction_score * 100)} · {selectedEdge.extraction_method.replaceAll("_", " ")}</p>
+                  <div className="graph-evidence-list">{selectedEdge.evidence.map((evidence) => <blockquote key={evidence.evidence_id}><p>“{evidence.text}”</p><footer>{sourceLabel(workspace, evidence.source_id)} · {evidence.span_id}</footer></blockquote>)}</div>
                 </div>
               )}
             </aside>
@@ -381,81 +348,25 @@ export default function GraphPanel({ apiHealthy, workspace, analysis }: Props) {
 
           <div className="graph-lists">
             <section>
-              <div className="graph-subheading">
-                <h3>Central entities</h3>
-                <span>Ranked on the non-negated structural projection</span>
-              </div>
-              <div className="graph-node-list" data-testid="graph-node-list">
-                {graph.nodes.slice(0, 12).map((node, index) => (
-                  <button type="button" key={node.entity_id} onClick={() => selectNode(node)}>
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                    <strong>{node.label}</strong>
-                    <small>PR {node.pagerank.toFixed(3)} · B {node.betweenness.toFixed(3)}</small>
-                  </button>
-                ))}
-              </div>
+              <div className="graph-subheading"><h3>Central entities</h3><span>Ranked on established + historical-unknown structural evidence</span></div>
+              <div className="graph-node-list" data-testid="graph-node-list">{graph.nodes.slice(0, 12).map((node, index) => <button type="button" key={node.entity_id} onClick={() => selectNode(node)}><span>{String(index + 1).padStart(2, "0")}</span><strong>{node.label}</strong><small>PR {node.pagerank.toFixed(3)} · B {node.betweenness.toFixed(3)}</small></button>)}</div>
             </section>
-
             <section>
-              <div className="graph-subheading">
-                <h3>Evidence assertions</h3>
-                <span>Every edge keeps polarity and source sentence lineage</span>
-              </div>
-              <div className="graph-edge-list" data-testid="graph-edge-list">
-                {graph.edges.slice(0, 20).map((edge) => (
-                  <button type="button" key={edge.relation_id} onClick={() => selectEdge(edge)}>
-                    <strong>{nodeById.get(edge.source_entity_id)?.label ?? edge.source_entity_id}</strong>
-                    <span>{edgeLabel(edge)}</span>
-                    <strong>{nodeById.get(edge.target_entity_id)?.label ?? edge.target_entity_id}</strong>
-                    <small>
-                      {edge.polarity.toUpperCase()} · {edge.evidence_count} evidence · {edge.source_count} source{edge.source_count === 1 ? "" : "s"}
-                    </small>
-                  </button>
-                ))}
-              </div>
+              <div className="graph-subheading"><h3>Evidence assertions</h3><span>Every edge keeps polarity, modality, year scope, and sentence lineage</span></div>
+              <div className="graph-edge-list" data-testid="graph-edge-list">{graph.edges.slice(0, 20).map((edge) => <button type="button" key={edge.relation_id} onClick={() => selectEdge(edge)}><strong>{nodeById.get(edge.source_entity_id)?.label ?? edge.source_entity_id}</strong><span>{edgeLabel(edge)}</span><strong>{nodeById.get(edge.target_entity_id)?.label ?? edge.target_entity_id}</strong><small>{edge.polarity.toUpperCase()} · {edge.modality.toUpperCase()} · {yearLabel(edge.temporal_years)} · {edge.evidence_count} evidence</small></button>)}</div>
             </section>
           </div>
 
           <section className="path-finder" aria-labelledby="path-heading">
-            <div className="graph-subheading">
-              <h3 id="path-heading">Connection path</h3>
-              <span>Fewest hops in the undirected non-negated evidence projection</span>
-            </div>
+            <div className="graph-subheading"><h3 id="path-heading">Connection path</h3><span>Fewest hops through established + historical-unknown evidence only</span></div>
             <div className="path-controls">
-              <select
-                data-testid="path-from"
-                value={pathFrom}
-                onChange={(event) => setPathFrom(event.target.value)}
-              >
-                {graph.nodes.map((node) => (
-                  <option key={node.entity_id} value={node.entity_id}>{node.label}</option>
-                ))}
-              </select>
+              <select data-testid="path-from" value={pathFrom} onChange={(event) => setPathFrom(event.target.value)}>{graph.nodes.map((node) => <option key={node.entity_id} value={node.entity_id}>{node.label}</option>)}</select>
               <span>→</span>
-              <select
-                data-testid="path-to"
-                value={pathTo}
-                onChange={(event) => setPathTo(event.target.value)}
-              >
-                {graph.nodes.map((node) => (
-                  <option key={node.entity_id} value={node.entity_id}>{node.label}</option>
-                ))}
-              </select>
-              <button type="button" data-testid="find-path-button" onClick={() => void findPath()}>
-                Find connection
-              </button>
+              <select data-testid="path-to" value={pathTo} onChange={(event) => setPathTo(event.target.value)}>{graph.nodes.map((node) => <option key={node.entity_id} value={node.entity_id}>{node.label}</option>)}</select>
+              <button type="button" data-testid="find-path-button" onClick={() => void findPath()}>Find connection</button>
             </div>
             <p className="path-message" data-testid="path-message">{pathMessage}</p>
-            {path && (
-              <div className="path-result" data-testid="path-result">
-                {path.entity_ids.map((entityId, index) => (
-                  <span key={`${entityId}-${index}`}>
-                    {nodeById.get(entityId)?.label ?? entityId}
-                    {index < path.entity_ids.length - 1 && " → "}
-                  </span>
-                ))}
-              </div>
-            )}
+            {path && <div className="path-result" data-testid="path-result">{path.entity_ids.map((entityId, index) => <span key={`${entityId}-${index}`}>{nodeById.get(entityId)?.label ?? entityId}{index < path.entity_ids.length - 1 && " → "}</span>)}</div>}
           </section>
         </>
       )}

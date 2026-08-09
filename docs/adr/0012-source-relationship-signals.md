@@ -2,42 +2,65 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
-VerityGraph can now identify cross-source support using distinct source IDs. That is useful, but distinct source IDs are not equivalent to independent reporting.
+VerityGraph can identify cross-source support using distinct source IDs. That is useful, but source identifiers are storage identities, not proof of independent reporting.
 
-Two source records may represent:
+Two source records can represent the same underlying material, repeat an identical supporting sentence, or originate from the same host. Conversely, two sources with no detected relationship signal are not automatically independent.
 
-- the same document uploaded twice under different filenames;
-- two pages from the same publisher or origin host;
-- two pages that repeat the exact same supporting sentence;
-- genuinely independent reports that happen to use identical wording;
-- derivative reporting where one source quotes or republishes another;
-- separate sources that ultimately rely on one common upstream source.
-
-The current product does not retain enough citation-chain or publication-history evidence to prove source independence or copying. It should therefore surface transparent relationship evidence without converting it into a binary trust judgement.
+The product does not yet retain enough citation-chain, ownership, or publication-history evidence to prove source independence or copying. A trust-oriented system must expose what it can actually observe without converting sparse provenance clues into unsupported causal claims.
 
 ## Decision
 
-Source comparison will retain the existing meaning of `cross_source`: the same qualified relation has evidence from at least two distinct source IDs.
+Source comparison retains the existing meaning of `cross_source`: the same resolved qualified relation has evidence from at least two distinct source IDs.
 
-It will additionally expose conservative source-pair review signals derived only from persisted local evidence:
+For every cross-source claim, VerityGraph additionally records:
 
-1. **Matching persisted content fingerprint** — both source records have the same stored content hash.
-2. **Identical normalized supporting sentence** — the same normalized evidence sentence supports the same resolved relation in both sources.
-3. **Same origin host** — both URL-backed sources resolve to the same normalized hostname.
+- the number of distinct source IDs;
+- the number of distinct persisted content fingerprints represented by those sources;
+- the number of distinct normalized evidence sentences retained for the claim.
 
-The first two create a `possible_derivation_signal` because they are strong enough to warrant review. Same-origin host is reported separately as context and does not by itself create that flag.
+For every source pair in the immutable analysis run, VerityGraph records a `SourceRelationshipSignal` containing:
 
-For each cross-source claim, VerityGraph also reports:
+- normalized origin hosts when URLs are available;
+- whether both sources have the same persisted content fingerprint;
+- how many identical normalized supporting sentences occur on the same resolved relation;
+- the relation IDs on which exact evidence text overlaps;
+- transparent human-readable review reasons;
+- a conservative `possible_derivation_signal`.
 
-- raw distinct source-ID count;
-- distinct persisted content-fingerprint count;
-- distinct normalized evidence-text count.
+The possible-derivation flag is true only when either:
 
-This allows the UI to show cases such as:
+1. persisted content fingerprints match exactly; or
+2. identical normalized supporting text is retained for the same resolved relation across the pair.
+
+A shared origin host is retained as context but is **not sufficient** by itself to set `possible_derivation_signal`.
+
+## Non-claims
+
+These signals must never be presented as proof that:
+
+- one source copied another;
+- two sources share a common upstream source;
+- two sources are independent;
+- a publisher is authoritative or untrustworthy;
+- corroborated content is true.
+
+Absence of a detected relationship signal is not evidence of independence.
+
+## Normalization
+
+Evidence text comparison uses deterministic Unicode NFKC normalization, case folding, whitespace collapse, and exact equality after normalization. It is intentionally not semantic similarity or paraphrase detection.
+
+Origin host comparison lowercases hostnames, removes a leading `www.`, and strips a trailing dot. It does not infer publisher ownership across different domains.
+
+Persisted `content_hash` remains the canonical exact-content fingerprint.
+
+## Interaction with corroboration
+
+The UI must make raw source count distinguishable from evidence diversity. For example:
 
 ```text
 2 source IDs
@@ -45,38 +68,66 @@ This allows the UI to show cases such as:
 1 distinct supporting sentence
 ```
 
-without claiming that either source copied the other.
+is different provenance context from:
 
-## Non-claims
+```text
+2 source IDs
+2 distinct content fingerprints
+2 distinct supporting sentences
+```
 
-A relationship signal does **not** prove:
+Neither case receives an independence verdict.
 
-- plagiarism;
-- republication;
-- common ownership;
-- citation dependence;
-- source independence;
-- factual correctness.
+## Interaction with contradiction candidates
 
-Likewise, absence of these signals does not prove independence. Two independently written sources may use identical wording, and two derivative sources may paraphrase enough to avoid exact-match signals.
+Source relationship signals do not currently suppress, promote, or adjudicate contradiction candidates. The contradiction rule remains:
+
+```text
+same resolved subject/predicate/object
++ opposing explicit polarity
++ asserted on both sides
++ compatible explicit time scope
++ at least two distinct source IDs across both sides
+```
+
+The relationship projection gives a reviewer additional provenance context without silently rewriting the contradiction contract.
 
 ## Consequences
 
 ### Benefits
 
-- cross-source support no longer visually implies independence;
-- duplicate uploads can be recognized as weaker diversity than two different content fingerprints;
-- exact repeated support text becomes inspectable evidence rather than hidden duplication;
-- same-domain reporting can be surfaced without hard-coded publisher trust rankings;
-- the implementation remains deterministic, local, explainable, and free of external APIs.
+- duplicate material can no longer masquerade as obviously diverse evidence in the UI;
+- exact repeated supporting text becomes reviewable without an LLM;
+- same-host context is visible without overclaiming derivation;
+- all signals are deterministic, local-first, auditable, and cheap to recompute;
+- future citation-chain and ownership metadata can extend the same projection.
 
 ### Limitations
 
-- content fingerprints depend on the canonical persisted content representation used by ingestion;
-- exact evidence-text matching misses paraphrased derivation;
-- same hostname does not imply editorial dependence;
-- no citation graph, author identity, publication timestamp, or syndication metadata is yet used;
-- source ownership and corporate relationships are not inferred.
+- exact text overlap misses paraphrases and translated reuse;
+- hostname equality is not publisher-ownership resolution;
+- different content fingerprints do not imply independence;
+- identical sentences can arise independently, especially for short factual statements;
+- no direction of derivation is inferred;
+- citation/reference lineage is not yet preserved.
+
+## Rejected alternatives
+
+### Assign an independence score
+
+Rejected because there is no labelled evaluation or sufficient provenance evidence to calibrate such a score.
+
+### Treat same hostname as derivation
+
+Rejected because two genuinely independent articles can share one publisher host.
+
+### Treat no detected signal as independent
+
+Rejected because missing metadata and paraphrased reuse would make that conclusion unsafe.
+
+### Use semantic similarity immediately
+
+Rejected for this baseline because similarity would introduce threshold calibration and false-positive risk before exact deterministic signals have been benchmarked.
 
 ## Future extensions
 

@@ -11,7 +11,7 @@ async function uploadAndAdd(page, name: string, text: string) {
   await page.getByTestId("workspace-add-source").click();
 }
 
-test("two sources expose exact corroboration without inventing contradiction", async ({ page }) => {
+test("two sources expose corroboration and transparent relationship signals", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("api-status")).toHaveText("API healthy");
 
@@ -32,9 +32,14 @@ test("two sources expose exact corroboration without inventing contradiction", a
     "Comparison ready · 1 cross-source · 2 single-source",
     { timeout: 10_000 },
   );
+  await expect(page.getByTestId("comparison-status")).toContainText("1 relationship review signal");
   await expect(page.getByTestId("contradiction-count")).toContainText("0");
+  await expect(page.getByTestId("relationship-signal-count")).toContainText("1");
   await expect(page.getByTestId("comparison-guardrail")).toContainText(
-    "Silence, modality, or different time scope ≠ contradiction",
+    "Source IDs ≠ independent reports",
+  );
+  await expect(page.getByTestId("comparison-guardrail")).toContainText(
+    "does not prove independence",
   );
   await expect(page.getByTestId("source-profile-list")).toContainText("source-one.txt");
   await expect(page.getByTestId("source-profile-list")).toContainText("source-two.txt");
@@ -59,8 +64,18 @@ test("two sources expose exact corroboration without inventing contradiction", a
   await expect(detail).toContainText("source-two.txt");
   await expect(detail).toContainText("Microsoft acquired GitHub.");
 
-  await expect(page.getByTestId("overlap-list")).toContainText("1 shared / 3 union");
-  await expect(page.getByTestId("overlap-list")).toContainText("33.3% overlap");
+  const diversity = page.getByTestId("claim-diversity");
+  await expect(diversity).toContainText("2 distinct content fingerprints");
+  await expect(diversity).toContainText("1 distinct evidence text");
+  await expect(diversity).toContainText("Repeated supporting text signal");
+  await expect(diversity).not.toContainText("Exact content duplicate signal");
+
+  const pair = page.getByTestId("source-pair-overlap");
+  await expect(pair).toContainText("1 shared / 3 union");
+  await expect(pair).toContainText("33.3% overlap");
+  await expect(pair).toContainText("1 exact shared supporting text");
+  await expect(pair).toContainText("Relationship review signal · not proof of copying");
+  await expect(pair).toContainText("Microsoft acquired GitHub.");
 
   await page.reload();
   await expect(page.getByTestId("workspace-detail")).toContainText("E2E Source Comparison");
@@ -70,5 +85,9 @@ test("two sources expose exact corroboration without inventing contradiction", a
   await expect(page.getByTestId("comparison-status")).toContainText("Comparison ready", {
     timeout: 10_000,
   });
+  await expect(page.getByTestId("relationship-signal-count")).toContainText("1");
+  await expect(page.getByTestId("source-pair-overlap")).toContainText(
+    "Relationship review signal · not proof of copying",
+  );
   await expect(page.getByTestId("contradiction-count")).toContainText("0");
 });

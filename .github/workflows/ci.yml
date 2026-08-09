@@ -42,9 +42,33 @@ jobs:
       - name: Build
         run: npm --prefix frontend run build
 
+  production-config:
+    runs-on: ubuntu-latest
+    env:
+      VERITYGRAPH_DOMAIN: veritygraph.example.test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate production Compose
+        run: docker compose -f docker-compose.prod.yml config >/dev/null
+      - name: Validate public Caddy configuration
+        run: |
+          docker run --rm \
+            -e VERITYGRAPH_DOMAIN="$VERITYGRAPH_DOMAIN" \
+            -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: Validate protected Caddy configuration
+        run: |
+          HASH=$(docker run --rm caddy:2-alpine caddy hash-password --plaintext ci-demo-password)
+          docker run --rm \
+            -e VERITYGRAPH_DOMAIN="$VERITYGRAPH_DOMAIN" \
+            -e VERITYGRAPH_AUTH_USER=demo \
+            -e VERITYGRAPH_AUTH_PASSWORD_HASH="$HASH" \
+            -v "$PWD/deploy/Caddyfile.protected:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+
   e2e:
     runs-on: ubuntu-latest
-    needs: [backend, frontend]
+    needs: [backend, frontend, production-config]
     env:
       VERITYGRAPH_WIKIPEDIA_PROVIDER: fixture
       VERITYGRAPH_WEB_PROVIDER: fixture

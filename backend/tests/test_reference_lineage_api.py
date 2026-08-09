@@ -56,7 +56,10 @@ def test_workspace_reference_lineage_resolves_uploaded_explicit_url() -> None:
     citing_bundle = upload.json()
     citing_source_id = citing_bundle["document"]["source_id"]
     assert len(citing_bundle["references"]) == 1
-    assert citing_bundle["references"][0]["span_id"] == citing_bundle["spans"][0]["span_id"]
+    reference = citing_bundle["references"][0]
+    assert reference["span_id"] == citing_bundle["spans"][0]["span_id"]
+    assert reference["page_number"] == 1
+    assert reference["paragraph_number"] == 1
 
     assert client.put(
         f"/api/v1/workspaces/{workspace_id}/sources/{citing_source_id}"
@@ -68,7 +71,7 @@ def test_workspace_reference_lineage_resolves_uploaded_explicit_url() -> None:
     response = client.get(f"/api/v1/workspaces/{workspace_id}/reference-lineage")
     assert response.status_code == 200
     lineage = response.json()
-    assert lineage["lineage_version"] == "explicit-url-lineage-v1"
+    assert lineage["lineage_version"] == "explicit-reference-lineage-v2-format-links"
     assert lineage["summary"] == {
         "source_count": 2,
         "reference_count": 1,
@@ -82,6 +85,8 @@ def test_workspace_reference_lineage_resolves_uploaded_explicit_url() -> None:
     assert edge["resolution"] == "workspace_unique"
     assert edge["target_source_ids"] == [target.source_id]
     assert edge["normalized_target_url"] == target.url
+    assert edge["page_number"] == 1
+    assert edge["paragraph_number"] == 1
     assert "does not prove quotation" in lineage["interpretation_note"]
 
 

@@ -55,6 +55,7 @@ class WikipediaFetchedReference(BaseModel):
     target_url: str
     anchor_text: str | None = None
     context_text: str | None = None
+    reference_text: str | None = None
     citation_label: str | None = None
     citation_marker: str | None = None
     extraction_method: str

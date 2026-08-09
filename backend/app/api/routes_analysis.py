@@ -75,7 +75,10 @@ def latest_workspace_analysis(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found.")
     analysis = analysis_repository.latest_for_workspace(workspace_id)
     if analysis is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No completed analysis found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No completed analysis found.",
+        )
     return analysis
 
 

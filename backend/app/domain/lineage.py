@@ -16,6 +16,8 @@ class ReferenceLineageEdge(BaseModel):
     source_id: str
     source_label: str
     span_id: str | None = None
+    page_number: int | None = Field(default=None, ge=1)
+    paragraph_number: int | None = Field(default=None, ge=1)
     target_url: str
     normalized_target_url: str
     resolution: ReferenceResolution

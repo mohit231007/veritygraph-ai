@@ -10,6 +10,8 @@ type ReferenceLineageEdge = {
   source_id: string;
   source_label: string;
   span_id: string | null;
+  page_number: number | null;
+  paragraph_number: number | null;
   target_url: string;
   normalized_target_url: string;
   resolution: ReferenceResolution;
@@ -51,6 +53,14 @@ function targetLabel(edge: ReferenceLineageEdge) {
   if (edge.target_labels.length === 1) return edge.target_labels[0];
   if (edge.target_labels.length > 1) return edge.target_labels.join(" · ");
   return edge.normalized_target_url;
+}
+
+function locatorLabel(edge: ReferenceLineageEdge) {
+  const parts: string[] = [];
+  if (edge.page_number !== null) parts.push(`Page ${edge.page_number}`);
+  if (edge.paragraph_number !== null) parts.push(`Paragraph ${edge.paragraph_number}`);
+  if (edge.span_id) parts.push(edge.span_id);
+  return parts.join(" · ");
 }
 
 export default function ReferenceLineagePanel({ apiHealthy, workspace }: Props) {
@@ -119,23 +129,27 @@ export default function ReferenceLineagePanel({ apiHealthy, workspace }: Props) 
           </aside>
 
           <div className="reference-lineage-list" data-testid="reference-lineage-list">
-            {lineage.references.map((edge) => (
-              <article key={edge.reference_id} data-testid="reference-lineage-edge">
-                <div className="reference-lineage-path">
-                  <strong>{edge.source_label}</strong>
-                  <span>→</span>
-                  <strong>{targetLabel(edge)}</strong>
-                </div>
-                <p className={`reference-resolution ${edge.resolution}`}>{resolutionLabel(edge)}</p>
-                <p className="reference-target">{edge.normalized_target_url}</p>
-                {edge.anchor_text && <p>Anchor · {edge.anchor_text}</p>}
-                {edge.context_text && <blockquote>“{edge.context_text}”</blockquote>}
-                <footer>
-                  {edge.span_id ? `${edge.span_id} · ` : ""}{edge.extraction_method}
-                  {edge.self_reference ? " · self-reference" : ""}
-                </footer>
-              </article>
-            ))}
+            {lineage.references.map((edge) => {
+              const locator = locatorLabel(edge);
+              return (
+                <article key={edge.reference_id} data-testid="reference-lineage-edge">
+                  <div className="reference-lineage-path">
+                    <strong>{edge.source_label}</strong>
+                    <span>→</span>
+                    <strong>{targetLabel(edge)}</strong>
+                  </div>
+                  <p className={`reference-resolution ${edge.resolution}`}>{resolutionLabel(edge)}</p>
+                  <p className="reference-target">{edge.normalized_target_url}</p>
+                  {locator && <p data-testid="reference-locator">{locator}</p>}
+                  {edge.anchor_text && <p>Anchor · {edge.anchor_text}</p>}
+                  {edge.context_text && <blockquote>“{edge.context_text}”</blockquote>}
+                  <footer>
+                    {edge.extraction_method}
+                    {edge.self_reference ? " · self-reference" : ""}
+                  </footer>
+                </article>
+              );
+            })}
             {lineage.references.length === 0 && (
               <p className="reference-lineage-empty">No explicit HTTP(S) references were retained from the current workspace sources.</p>
             )}

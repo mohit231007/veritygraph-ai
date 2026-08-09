@@ -7,6 +7,8 @@ from uuid import uuid4
 
 import fitz
 from docx import Document
+from docx.oxml.ns import qn
+from docx.text.paragraph import Paragraph
 
 from app.domain.source import SourceSpan
 
@@ -21,6 +23,14 @@ def _span_id() -> str:
 
 def _clean_text(value: str) -> str:
     return " ".join(value.split()).strip()
+
+
+def _docx_paragraph_text(paragraph: Paragraph) -> str:
+    """Read all visible Word text, including text nested inside hyperlinks."""
+
+    return _clean_text(
+        "".join(node.text or "" for node in paragraph._p.iter(qn("w:t")))
+    )
 
 
 def _build_span(
@@ -122,7 +132,7 @@ def parse_docx(source_id: str, content: bytes) -> list[SourceSpan]:
     blocks.extend(
         (cleaned, None)
         for paragraph in document.paragraphs
-        if (cleaned := _clean_text(paragraph.text))
+        if (cleaned := _docx_paragraph_text(paragraph))
     )
 
     for table_index, table in enumerate(document.tables, start=1):

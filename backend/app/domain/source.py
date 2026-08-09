@@ -58,11 +58,15 @@ class SourceReference(BaseModel):
 
     References are observations, not causal claims. ``span_id`` is populated only
     when the reference can be tied to retained evidence text deterministically.
+    Page/paragraph locators are format provenance and do not imply that the target
+    URL itself was present in extracted NLP text.
     """
 
     reference_id: str
     source_id: str
     span_id: str | None = None
+    page_number: int | None = Field(default=None, ge=1)
+    paragraph_number: int | None = Field(default=None, ge=1)
     target_url: str
     normalized_target_url: str
     anchor_text: str | None = None

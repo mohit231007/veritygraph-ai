@@ -24,14 +24,14 @@ class Settings(BaseSettings):
     wikipedia_language: str = "en"
     wikipedia_timeout_seconds: float = 12.0
     wikipedia_user_agent: str = (
-        "VerityGraphAI/0.5 (+https://github.com/mohit231007/veritygraph-ai)"
+        "VerityGraphAI/0.9 (+https://github.com/mohit231007/veritygraph-ai)"
     )
 
     web_provider: str = "live"
     web_timeout_seconds: float = 12.0
     web_max_content_bytes: int = 3 * 1024 * 1024
     web_max_redirects: int = 4
-    web_user_agent: str = "VerityGraphAI/0.5 (+https://github.com/mohit231007/veritygraph-ai)"
+    web_user_agent: str = "VerityGraphAI/0.9 (+https://github.com/mohit231007/veritygraph-ai)"
 
     nlp_model: str = "en_core_web_sm"
     nlp_batch_size: int = 64

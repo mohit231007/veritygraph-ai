@@ -13,14 +13,16 @@ from app.domain.workspace import WorkspaceDetail
 from app.repositories.source_repository import SourceRepository
 from app.services.source_references import normalize_reference_url
 
-LINEAGE_VERSION = "explicit-url-lineage-v1"
+LINEAGE_VERSION = "explicit-reference-lineage-v2-format-links"
 INTERPRETATION_NOTE = (
-    "Reference lineage contains only explicit HTTP(S) targets retained during ingestion. "
-    "A workspace resolution means the normalized target URL matches persisted URL metadata "
-    "for one or more sources currently in this workspace; it does not prove quotation, "
-    "endorsement, factual dependence, or direction of copying. An external target may simply "
-    "not have been ingested. Multiple workspace sources with the same URL remain ambiguous "
-    "rather than being collapsed arbitrarily."
+    "Reference lineage contains only explicit HTTP(S) targets retained during ingestion, "
+    "including visible URLs and supported format-level link metadata. A page or paragraph "
+    "locator identifies where the link was observed; it does not mean the target URL itself "
+    "was present in extracted NLP text. A workspace resolution means the normalized target "
+    "URL matches persisted URL metadata for one or more sources currently in this workspace; "
+    "it does not prove quotation, endorsement, factual dependence, or direction of copying. "
+    "An external target may simply not have been ingested. Multiple workspace sources with "
+    "the same URL remain ambiguous rather than being collapsed arbitrarily."
 )
 
 
@@ -85,6 +87,8 @@ def build_workspace_reference_lineage(
                     source_id=source_id,
                     source_label=_label(source_document),
                     span_id=reference.span_id,
+                    page_number=reference.page_number,
+                    paragraph_number=reference.paragraph_number,
                     target_url=reference.target_url,
                     normalized_target_url=reference.normalized_target_url,
                     resolution=resolution,
@@ -100,6 +104,8 @@ def build_workspace_reference_lineage(
     edges.sort(
         key=lambda edge: (
             edge.source_label.casefold(),
+            edge.page_number or 0,
+            edge.paragraph_number or 0,
             edge.normalized_target_url,
             edge.span_id or "",
             edge.reference_id,

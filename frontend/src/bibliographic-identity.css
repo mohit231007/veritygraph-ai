@@ -61,16 +61,155 @@
   color: #9aa9b8;
 }
 
+.bibliographic-explorer {
+  margin: 1rem 0;
+  padding: 0.95rem;
+  border: 1px solid rgba(123, 148, 178, 0.16);
+  border-radius: 0.9rem;
+  background: rgba(13, 24, 36, 0.78);
+}
+
+.bibliographic-explorer-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 0.75fr) minmax(440px, 1.25fr);
+  gap: 1rem;
+  align-items: end;
+}
+
+.bibliographic-explorer-heading > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.bibliographic-explorer-heading > div:first-child span,
+.bibliographic-explorer-result-count,
+.bibliographic-group-sources {
+  color: #8496aa;
+  font-size: 0.8rem;
+}
+
+.bibliographic-explorer-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.6rem;
+}
+
+.bibliographic-explorer-controls input,
+.bibliographic-explorer-controls select {
+  min-width: 0;
+  border: 1px solid #30495c;
+  border-radius: 0.72rem;
+  padding: 0.7rem 0.8rem;
+  background: #09141d;
+  color: #e8eef7;
+  outline: none;
+}
+
+.bibliographic-explorer-controls input:focus,
+.bibliographic-explorer-controls select:focus {
+  border-color: #78d9c5;
+}
+
+.bibliographic-explorer-result-count {
+  margin: 0.75rem 0 0;
+}
+
 .bibliographic-identity-list {
   display: grid;
   gap: 0.7rem;
 }
 
-.bibliographic-identity-list article {
-  padding: 0.85rem;
+.bibliographic-identifier-group {
+  overflow: hidden;
   border: 1px solid rgba(123, 148, 178, 0.15);
-  border-radius: 0.8rem;
+  border-radius: 0.85rem;
   background: rgba(14, 24, 36, 0.76);
+}
+
+.bibliographic-group-toggle {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.75rem;
+  align-items: center;
+  border: 0;
+  padding: 0.85rem;
+  background: transparent;
+  color: #e8eef7;
+  text-align: left;
+}
+
+.bibliographic-group-toggle:hover {
+  background: rgba(35, 56, 72, 0.26);
+}
+
+.bibliographic-group-heading {
+  min-width: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.bibliographic-group-heading strong {
+  overflow-wrap: anywhere;
+}
+
+.bibliographic-group-heading small {
+  color: #8195a8;
+}
+
+.bibliographic-shared-badge {
+  display: inline-block;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(83, 151, 133, 0.18);
+  color: #9dd9c9;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.bibliographic-expand-icon {
+  display: inline-grid;
+  width: 1.8rem;
+  height: 1.8rem;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(88, 113, 137, 0.17);
+  color: #a9bac9;
+  font-size: 1.1rem;
+}
+
+.bibliographic-group-sources {
+  margin: 0;
+  padding: 0 0.85rem 0.75rem;
+}
+
+.bibliographic-occurrence-list {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0 0.75rem 0.75rem;
+}
+
+.bibliographic-occurrence-list article {
+  padding: 0.85rem;
+  border: 1px solid rgba(123, 148, 178, 0.13);
+  border-radius: 0.75rem;
+  background: rgba(8, 17, 26, 0.72);
+}
+
+.bibliographic-occurrence-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+  color: #cdd8e2;
+}
+
+.bibliographic-occurrence-heading span {
+  color: #8195a8;
+  font-size: 0.78rem;
 }
 
 .bibliographic-identity-path,
@@ -113,7 +252,7 @@
   color: #93a9c0;
 }
 
-.bibliographic-identity-list blockquote {
+.bibliographic-occurrence-list blockquote {
   margin: 0.55rem 0;
   padding-left: 0.75rem;
   border-left: 2px solid rgba(123, 148, 178, 0.25);
@@ -122,4 +261,35 @@
 
 .bibliographic-identity-empty {
   color: #8496aa;
+}
+
+.bibliographic-show-more {
+  justify-self: center;
+  border: 1px solid #315064;
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  background: #10212d;
+  color: #b8c9d6;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .bibliographic-explorer-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .bibliographic-explorer-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .bibliographic-group-toggle {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .bibliographic-shared-badge {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
 }

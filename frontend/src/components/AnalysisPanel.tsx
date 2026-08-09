@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import "../analysis.css";
 import type { AnalysisEntity, AnalysisRelation, WorkspaceAnalysis, WorkspaceDetail } from "../types";
 
-type AnalysisState = "idle" | "loading" | "ready" | "error";
+type AnalysisState = "idle" | "restoring" | "running" | "ready" | "error";
 
 type Props = {
   apiHealthy: boolean;
@@ -34,6 +34,15 @@ function yearLabel(years: number[]) {
   return years.length > 0 ? `Year ${years.join(", ")}` : "No explicit year";
 }
 
+function analysisMatchesWorkspace(analysis: WorkspaceAnalysis, workspace: WorkspaceDetail) {
+  const runSourceIds = [...analysis.run.source_ids].sort();
+  const workspaceSourceIds = workspace.sources.map((source) => source.source_id).sort();
+  return (
+    runSourceIds.length === workspaceSourceIds.length &&
+    runSourceIds.every((sourceId, index) => sourceId === workspaceSourceIds[index])
+  );
+}
+
 export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange }: Props) {
   const [analysis, setAnalysis] = useState<WorkspaceAnalysis | null>(null);
   const [state, setState] = useState<AnalysisState>("idle");
@@ -53,10 +62,13 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
       return;
     }
 
+    const currentWorkspace = workspace;
+    const workspaceId = currentWorkspace.workspace_id;
     const controller = new AbortController();
-    const workspaceId = workspace.workspace_id;
-    setState("loading");
-    setMessage("Checking for the latest persisted analysis…");
+    setAnalysis(null);
+    onAnalysisChange(null);
+    setState("restoring");
+    setMessage("Checking for the latest persisted analysis and validating its source membership…");
 
     async function loadLatest() {
       try {
@@ -72,12 +84,23 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
         }
         if (!response.ok) throw new Error("Could not load the latest analysis.");
         const restored = (await response.json()) as WorkspaceAnalysis;
+        if (!analysisMatchesWorkspace(restored, currentWorkspace)) {
+          setAnalysis(null);
+          onAnalysisChange(null);
+          setState("idle");
+          setMessage(
+            "Workspace sources changed since the latest completed analysis. Run a new analysis to refresh graph and comparison results.",
+          );
+          return;
+        }
         setAnalysis(restored);
         onAnalysisChange(restored);
         setState("ready");
-        setMessage("Latest completed analysis restored from SQLite.");
+        setMessage("Latest completed analysis restored from SQLite and matched to the current source set.");
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        setAnalysis(null);
+        onAnalysisChange(null);
         setState("error");
         setMessage(error instanceof Error ? error.message : "Could not load analysis.");
       }
@@ -89,7 +112,7 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
 
   async function runAnalysis() {
     if (!workspace || workspace.source_count === 0) return;
-    setState("loading");
+    setState("running");
     setMessage("Running local NER, relations, polarity, modality, year qualifiers and alias resolution…");
     try {
       const response = await fetch(`/api/v1/workspaces/${workspace.workspace_id}/analyses`, {
@@ -111,12 +134,22 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
     }
   }
 
+  const analysisBusy = state === "restoring" || state === "running";
+  const analysisButtonLabel =
+    state === "restoring"
+      ? "Restoring analysis…"
+      : state === "running"
+        ? "Analysing locally…"
+        : analysis
+          ? "Run new analysis"
+          : "Analyse workspace";
+
   return (
     <section className="analysis-panel" aria-labelledby="analysis-heading" data-testid="analysis-panel">
       <div className="analysis-heading">
         <div><p className="section-label">ANALYSIS ENGINE</p><h2 id="analysis-heading">Evidence-linked NLP baseline</h2></div>
-        <button type="button" data-testid="analyse-workspace-button" disabled={!apiHealthy || !workspace || workspace.source_count === 0 || state === "loading"} onClick={() => void runAnalysis()}>
-          {state === "loading" ? "Analysing locally…" : analysis ? "Run new analysis" : "Analyse workspace"}
+        <button type="button" data-testid="analyse-workspace-button" disabled={!apiHealthy || !workspace || workspace.source_count === 0 || analysisBusy} onClick={() => void runAnalysis()}>
+          {analysisButtonLabel}
         </button>
       </div>
 

@@ -4,7 +4,7 @@ import re
 import unicodedata
 from collections import defaultdict
 
-from app.domain.analysis import Entity, Relation, RelationEvidence
+from app.domain.analysis import AssertionPolarity, Entity, Relation, RelationEvidence
 
 CORPORATE_SUFFIXES = {
     "ag",
@@ -202,7 +202,7 @@ class DeterministicEntityResolver:
         relations: list[Relation],
         entity_id_map: dict[str, str],
     ) -> list[Relation]:
-        aggregated: dict[tuple[str, str, str], Relation] = {}
+        aggregated: dict[tuple[str, str, str, AssertionPolarity], Relation] = {}
         evidence_seen: dict[str, set[tuple[str, str, int, int, str]]] = defaultdict(set)
 
         for relation in relations:
@@ -217,7 +217,7 @@ class DeterministicEntityResolver:
             if subject_id == object_id:
                 continue
 
-            key = (subject_id, relation.predicate, object_id)
+            key = (subject_id, relation.predicate, object_id, relation.polarity)
             resolved = aggregated.get(key)
             if resolved is None:
                 resolved = relation.model_copy(
@@ -232,6 +232,7 @@ class DeterministicEntityResolver:
             elif relation.extraction_score > resolved.extraction_score:
                 resolved.extraction_score = relation.extraction_score
                 resolved.extraction_method = relation.extraction_method
+                resolved.polarity_method = relation.polarity_method
 
             for evidence in relation.evidence:
                 evidence_key = (
@@ -258,6 +259,10 @@ class DeterministicEntityResolver:
 
         resolved_relations = list(aggregated.values())
         resolved_relations.sort(
-            key=lambda relation: (-relation.extraction_score, relation.predicate)
+            key=lambda relation: (
+                -relation.extraction_score,
+                relation.predicate,
+                relation.polarity.value,
+            )
         )
         return resolved_relations

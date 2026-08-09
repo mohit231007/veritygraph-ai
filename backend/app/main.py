@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes_analysis import router as analysis_router
 from app.api.routes_documents import router as documents_router
+from app.api.routes_graph import router as graph_router
 from app.api.routes_health import router as health_router
 from app.api.routes_sources import router as sources_router
 from app.api.routes_web import router as web_router
@@ -34,6 +35,7 @@ app.include_router(web_router, prefix="/api/v1")
 app.include_router(sources_router, prefix="/api/v1")
 app.include_router(workspaces_router, prefix="/api/v1")
 app.include_router(analysis_router, prefix="/api/v1")
+app.include_router(graph_router, prefix="/api/v1")
 
 
 @app.get("/", include_in_schema=False)

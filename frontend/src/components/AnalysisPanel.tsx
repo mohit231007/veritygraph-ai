@@ -34,6 +34,15 @@ function yearLabel(years: number[]) {
   return years.length > 0 ? `Year ${years.join(", ")}` : "No explicit year";
 }
 
+function analysisMatchesWorkspace(analysis: WorkspaceAnalysis, workspace: WorkspaceDetail) {
+  const runSourceIds = [...analysis.run.source_ids].sort();
+  const workspaceSourceIds = workspace.sources.map((source) => source.source_id).sort();
+  return (
+    runSourceIds.length === workspaceSourceIds.length &&
+    runSourceIds.every((sourceId, index) => sourceId === workspaceSourceIds[index])
+  );
+}
+
 export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange }: Props) {
   const [analysis, setAnalysis] = useState<WorkspaceAnalysis | null>(null);
   const [state, setState] = useState<AnalysisState>("idle");
@@ -45,9 +54,12 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
   );
 
   useEffect(() => {
+    onAnalysisChange(analysis);
+  }, [analysis, onAnalysisChange]);
+
+  useEffect(() => {
     if (!apiHealthy || !workspace) {
       setAnalysis(null);
-      onAnalysisChange(null);
       setState("idle");
       setMessage(null);
       return;
@@ -55,8 +67,9 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
 
     const controller = new AbortController();
     const workspaceId = workspace.workspace_id;
+    setAnalysis(null);
     setState("loading");
-    setMessage("Checking for the latest persisted analysis…");
+    setMessage("Checking for the latest persisted analysis and validating its source membership…");
 
     async function loadLatest() {
       try {
@@ -65,19 +78,26 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
         });
         if (response.status === 404) {
           setAnalysis(null);
-          onAnalysisChange(null);
           setState("idle");
           setMessage("No analysis run yet. Run the local baseline when this workspace has evidence.");
           return;
         }
         if (!response.ok) throw new Error("Could not load the latest analysis.");
         const restored = (await response.json()) as WorkspaceAnalysis;
+        if (!analysisMatchesWorkspace(restored, workspace)) {
+          setAnalysis(null);
+          setState("idle");
+          setMessage(
+            "Workspace sources changed since the latest completed analysis. Run a new analysis to refresh graph and comparison results.",
+          );
+          return;
+        }
         setAnalysis(restored);
-        onAnalysisChange(restored);
         setState("ready");
-        setMessage("Latest completed analysis restored from SQLite.");
+        setMessage("Latest completed analysis restored from SQLite and matched to the current source set.");
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
+        setAnalysis(null);
         setState("error");
         setMessage(error instanceof Error ? error.message : "Could not load analysis.");
       }
@@ -85,7 +105,7 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
 
     void loadLatest();
     return () => controller.abort();
-  }, [apiHealthy, onAnalysisChange, workspace]);
+  }, [apiHealthy, workspace]);
 
   async function runAnalysis() {
     if (!workspace || workspace.source_count === 0) return;
@@ -102,7 +122,6 @@ export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange 
       }
       const completed = payload as WorkspaceAnalysis;
       setAnalysis(completed);
-      onAnalysisChange(completed);
       setState("ready");
       setMessage("Analysis completed locally and persisted as a new immutable run.");
     } catch (error) {

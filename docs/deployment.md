@@ -243,14 +243,14 @@ This creates one reverse-proxy username/password gate. It is useful for controll
 
 The backend image includes `scripts/sqlite_backup.py`, which uses SQLite's backup API instead of copying a live database file byte-for-byte.
 
-The production Compose file bind-mounts repository `./backups` as `/backups` inside the backend container.
+Production Compose defines a separate `backup` service under the `ops` profile. The normal API service continues to run as the non-root `veritygraph` user; only this explicitly invoked administrative container runs with the privileges needed to write the host `./backups` bind mount.
 
 Create a backup while the app is running:
 
 ```bash
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-docker compose --env-file .env.production -f docker-compose.prod.yml exec -T backend \
-  python scripts/sqlite_backup.py backup \
+docker compose --env-file .env.production -f docker-compose.prod.yml --profile ops run --rm backup \
+  backup \
   --source /data/veritygraph.db \
   --output /backups/veritygraph-$STAMP.db
 ```
@@ -259,17 +259,17 @@ The resulting file appears under the server's `backups/` directory. Copy backups
 
 ### Restore
 
-Stop application writers first:
+Restoring rewrites the live database, so stop application writers first:
 
 ```bash
 docker compose --env-file .env.production -f docker-compose.prod.yml stop backend frontend
 ```
 
-Restore a selected backup:
+Restore a selected backup through the one-off ops service:
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml run --rm backend \
-  python scripts/sqlite_backup.py restore \
+docker compose --env-file .env.production -f docker-compose.prod.yml --profile ops run --rm backup \
+  restore \
   --source /backups/veritygraph-YYYYMMDDTHHMMSSZ.db \
   --output /data/veritygraph.db
 ```
@@ -306,7 +306,8 @@ The current deployment has:
 - HTTPS at the production edge;
 - same-origin frontend/API routing;
 - no direct public FastAPI port in production Compose;
-- non-root backend container;
+- non-root backend runtime container;
+- isolated one-off administrative backup/restore service;
 - bounded upload size;
 - SSRF-aware public URL ingestion;
 - persistent SQLite storage;
@@ -340,6 +341,6 @@ Before sharing a durable URL:
 [ ] grounded evidence pack works
 [ ] retrieval evaluation endpoint works
 [ ] browser reload preserves workspace data
-[ ] backup command creates a restorable SQLite file
+[ ] ops-profile backup command creates a restorable SQLite file
 [ ] protected demo mode enabled when content should not be public
 ```

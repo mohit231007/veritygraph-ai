@@ -115,6 +115,8 @@ class SqliteSourceRepository:
                     reference_id TEXT PRIMARY KEY,
                     source_id TEXT NOT NULL,
                     span_id TEXT,
+                    page_number INTEGER,
+                    paragraph_number INTEGER,
                     target_url TEXT NOT NULL,
                     normalized_target_url TEXT NOT NULL,
                     anchor_text TEXT,
@@ -129,6 +131,20 @@ class SqliteSourceRepository:
                 CREATE INDEX IF NOT EXISTS idx_source_references_target
                     ON source_references(normalized_target_url);
                 """
+            )
+            self._ensure_reference_location_columns(connection)
+
+    @staticmethod
+    def _ensure_reference_location_columns(connection: sqlite3.Connection) -> None:
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(source_references)").fetchall()
+        }
+        if "page_number" not in columns:
+            connection.execute("ALTER TABLE source_references ADD COLUMN page_number INTEGER")
+        if "paragraph_number" not in columns:
+            connection.execute(
+                "ALTER TABLE source_references ADD COLUMN paragraph_number INTEGER"
             )
 
     def save(self, bundle: SourceBundle) -> SourceBundle:
@@ -198,16 +214,18 @@ class SqliteSourceRepository:
             connection.executemany(
                 """
                 INSERT INTO source_references (
-                    reference_id, source_id, span_id, target_url,
-                    normalized_target_url, anchor_text, context_text,
+                    reference_id, source_id, span_id, page_number, paragraph_number,
+                    target_url, normalized_target_url, anchor_text, context_text,
                     extraction_method
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
                         reference.reference_id,
                         reference.source_id,
                         reference.span_id,
+                        reference.page_number,
+                        reference.paragraph_number,
                         reference.target_url,
                         reference.normalized_target_url,
                         reference.anchor_text,
@@ -298,6 +316,8 @@ class SqliteSourceRepository:
             reference_id=row["reference_id"],
             source_id=row["source_id"],
             span_id=row["span_id"],
+            page_number=row["page_number"],
+            paragraph_number=row["paragraph_number"],
             target_url=row["target_url"],
             normalized_target_url=row["normalized_target_url"],
             anchor_text=row["anchor_text"],

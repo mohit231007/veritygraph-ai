@@ -81,6 +81,7 @@ export type AnalysisRun = {
   model_name: string;
   model_version: string;
   extractor_version: string;
+  resolver_version: string;
   started_at: string;
   completed_at: string | null;
   duration_ms: number | null;

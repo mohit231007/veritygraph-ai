@@ -9,12 +9,14 @@ type Props = {
   apiHealthy: boolean;
   currentSource: SourceDocument | null;
   onWorkspaceChange: (workspace: WorkspaceDetail | null) => void;
+  refreshToken?: number;
 };
 
 export default function WorkspaceManager({
   apiHealthy,
   currentSource,
   onWorkspaceChange,
+  refreshToken = 0,
 }: Props) {
   const [workspaces, setWorkspaces] = useState<WorkspaceSummary[]>([]);
   const [activeId, setActiveId] = useState<string>(
@@ -82,7 +84,7 @@ export default function WorkspaceManager({
     void loadDetail(activeId).catch((error: unknown) => {
       setMessage(error instanceof Error ? error.message : "Could not load workspace details.");
     });
-  }, [activeId, apiHealthy]);
+  }, [activeId, apiHealthy, refreshToken]);
 
   async function createWorkspace() {
     const name = newName.trim();

@@ -59,7 +59,10 @@ class SourceReference(BaseModel):
     References are observations, not causal claims. ``span_id`` is populated only
     when the reference can be tied to retained evidence text deterministically.
     Page/paragraph locators are format provenance and do not imply that the target
-    URL itself was present in extracted NLP text.
+    URL itself was present in extracted NLP text. ``reference_text`` can preserve a
+    bibliographic or footnote entry separately from the citing span context.
+    Citation marker fields preserve an explicit source-format bridge such as a
+    MediaWiki ``[1]`` marker without assigning citation intent or truth semantics.
     """
 
     reference_id: str
@@ -71,6 +74,9 @@ class SourceReference(BaseModel):
     normalized_target_url: str
     anchor_text: str | None = None
     context_text: str | None = None
+    reference_text: str | None = None
+    citation_label: str | None = None
+    citation_marker: str | None = None
     extraction_method: str
 
 

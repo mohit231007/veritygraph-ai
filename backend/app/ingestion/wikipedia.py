@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from html import unescape
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 
 from app.domain.wikipedia import (
     WikipediaFetchedPage,
+    WikipediaFetchedReference,
     WikipediaFetchedSection,
     WikipediaOutline,
     WikipediaSearchResult,
@@ -42,32 +45,184 @@ def _normalize_text(value: str) -> str:
     return " ".join(value.split()).strip()
 
 
+def _normalize_reference_text(value: str) -> str:
+    normalized = _normalize_text(value)
+    for punctuation in (".", ",", ";", ":", "!", "?", ")", "]", "}"):
+        normalized = normalized.replace(f" {punctuation}", punctuation)
+    return normalized
+
+
 def _plain_text(html: str) -> str:
     soup = BeautifulSoup(unescape(html), "html.parser")
     return _normalize_text(soup.get_text(" ", strip=True))
 
 
+def _node_text_without_reference_markers(node: Tag) -> str:
+    clone = BeautifulSoup(str(node), "html.parser")
+    for removable in clone.select("sup.reference, .mw-editsection"):
+        removable.decompose()
+    root = clone.find(node.name)
+    if root is None:
+        return ""
+    if node.name == "tr":
+        cells = [
+            _normalize_reference_text(cell.get_text(" ", strip=True))
+            for cell in root.find_all(["th", "td"])
+        ]
+        return " | ".join(cell for cell in cells if cell)
+    return _normalize_reference_text(root.get_text(" ", strip=True))
+
+
 def _paragraphs_from_html(html: str) -> list[str]:
     soup = BeautifulSoup(html, "html.parser")
-    for node in soup.select("script, style, noscript, sup.reference, .mw-editsection"):
+    for node in soup.select("script, style, noscript, .mw-editsection"):
         node.decompose()
 
     paragraphs: list[str] = []
     seen: set[str] = set()
     for node in soup.find_all(["p", "li", "tr"]):
-        if node.name == "tr":
-            cells = [
-                _normalize_text(cell.get_text(" ", strip=True))
-                for cell in node.find_all(["th", "td"])
-            ]
-            text = " | ".join(cell for cell in cells if cell)
-        else:
-            text = _normalize_text(node.get_text(" ", strip=True))
+        text = _node_text_without_reference_markers(node)
         if len(text) < 2 or text in seen:
             continue
         seen.add(text)
         paragraphs.append(text)
     return paragraphs
+
+
+def _external_http_target(href: str, page_url: str) -> str | None:
+    candidate = unescape(href).strip()
+    if not candidate or candidate.startswith("#"):
+        return None
+    if candidate.startswith("//"):
+        candidate = f"https:{candidate}"
+    elif not candidate.lower().startswith(("http://", "https://")):
+        return None
+    target = urljoin(page_url, candidate)
+    if urlsplit(target).scheme.lower() not in {"http", "https"}:
+        return None
+    return target
+
+
+def _reference_entry_text(node: Tag) -> str:
+    clone = BeautifulSoup(str(node), "html.parser")
+    for backlink in clone.select(".mw-cite-backlink"):
+        backlink.decompose()
+    root = clone.find(node.name)
+    return _normalize_reference_text(root.get_text(" ", strip=True)) if root else ""
+
+
+def _reference_catalog(
+    html: str,
+    *,
+    page_url: str,
+) -> dict[str, list[WikipediaFetchedReference]]:
+    """Catalog explicit external URLs from MediaWiki cite-note entries."""
+
+    soup = BeautifulSoup(html, "html.parser")
+    catalog: dict[str, list[WikipediaFetchedReference]] = {}
+    for item in soup.find_all(
+        "li",
+        id=lambda value: bool(value and value.startswith("cite_note-")),
+    ):
+        marker = str(item.get("id"))
+        reference_text = _reference_entry_text(item) or None
+        entries: list[WikipediaFetchedReference] = []
+        seen_targets: set[str] = set()
+        for anchor in item.find_all("a", href=True):
+            target = _external_http_target(str(anchor.get("href", "")), page_url)
+            if target is None or target in seen_targets:
+                continue
+            seen_targets.add(target)
+            entries.append(
+                WikipediaFetchedReference(
+                    target_url=target,
+                    anchor_text=_normalize_text(anchor.get_text(" ", strip=True)) or None,
+                    reference_text=reference_text,
+                    citation_marker=marker,
+                    extraction_method="mediawiki_reference_catalog_v1",
+                )
+            )
+        if entries:
+            catalog[marker] = entries
+    return catalog
+
+
+def _inline_citation_references(
+    html: str,
+    *,
+    page_url: str,
+    catalog: dict[str, list[WikipediaFetchedReference]],
+) -> list[WikipediaFetchedReference]:
+    """Resolve only cite-note markers that occur inside the selected section."""
+
+    soup = BeautifulSoup(html, "html.parser")
+    references: list[WikipediaFetchedReference] = []
+    seen: set[tuple[str, str, str]] = set()
+
+    for node in soup.find_all(["p", "li", "tr"]):
+        context = _node_text_without_reference_markers(node)
+        if not context:
+            continue
+
+        for superscript in node.select("sup.reference"):
+            citation_label = _normalize_text(superscript.get_text(" ", strip=True)) or None
+            for anchor in superscript.find_all("a", href=True):
+                fragment = urlsplit(str(anchor.get("href", ""))).fragment
+                if not fragment.startswith("cite_note-"):
+                    continue
+                for catalog_entry in catalog.get(fragment, []):
+                    key = (context, fragment, catalog_entry.target_url)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    references.append(
+                        WikipediaFetchedReference(
+                            target_url=catalog_entry.target_url,
+                            anchor_text=catalog_entry.anchor_text,
+                            context_text=context,
+                            reference_text=catalog_entry.reference_text,
+                            citation_label=citation_label,
+                            citation_marker=fragment,
+                            extraction_method="mediawiki_inline_citation_v1",
+                        )
+                    )
+
+        if node.name != "li":
+            continue
+        marker_value = node.get("id")
+        if not marker_value or not str(marker_value).startswith("cite_note-"):
+            continue
+        marker = str(marker_value)
+        reference_text = _reference_entry_text(node) or None
+        for anchor in node.find_all("a", href=True):
+            target = _external_http_target(str(anchor.get("href", "")), page_url)
+            if target is None:
+                continue
+            key = (context, marker, target)
+            if key in seen:
+                continue
+            seen.add(key)
+            references.append(
+                WikipediaFetchedReference(
+                    target_url=target,
+                    anchor_text=_normalize_text(anchor.get_text(" ", strip=True)) or None,
+                    context_text=context,
+                    reference_text=reference_text,
+                    citation_marker=marker,
+                    extraction_method="mediawiki_reference_list_v1",
+                )
+            )
+    return references
+
+
+def _parse_text_html(payload: dict) -> str:
+    parsed = payload.get("parse")
+    if not parsed:
+        raise WikipediaPageNotFoundError("Wikipedia page not found.")
+    html = parsed.get("text", "")
+    if isinstance(html, dict):
+        html = html.get("*", "")
+    return str(html)
 
 
 class MediaWikiWikipediaProvider(WikipediaProvider):
@@ -203,6 +358,19 @@ class MediaWikiWikipediaProvider(WikipediaProvider):
                 f"Unknown Wikipedia section(s): {', '.join(invalid)}"
             )
 
+        full_page_payload = await self._get(
+            {
+                "action": "parse",
+                "pageid": page_id,
+                "prop": "text",
+                "redirects": 1,
+            }
+        )
+        catalog = _reference_catalog(
+            _parse_text_html(full_page_payload),
+            page_url=outline.url,
+        )
+
         fetched: list[WikipediaFetchedSection] = []
         for index in section_indices:
             payload = await self._get(
@@ -214,19 +382,19 @@ class MediaWikiWikipediaProvider(WikipediaProvider):
                     "redirects": 1,
                 }
             )
-            parsed = payload.get("parse")
-            if not parsed:
-                raise WikipediaPageNotFoundError("Wikipedia page not found.")
-            html = parsed.get("text", "")
-            if isinstance(html, dict):
-                html = html.get("*", "")
-            paragraphs = _paragraphs_from_html(str(html))
+            html = _parse_text_html(payload)
+            paragraphs = _paragraphs_from_html(html)
             if paragraphs:
                 fetched.append(
                     WikipediaFetchedSection(
                         index=index,
                         title=titles[index],
                         paragraphs=paragraphs,
+                        references=_inline_citation_references(
+                            html,
+                            page_url=outline.url,
+                            catalog=catalog,
+                        ),
                     )
                 )
 
@@ -313,6 +481,23 @@ class FixtureWikipediaProvider(WikipediaProvider):
                 )
             ],
         }
+        references = {
+            "0": [],
+            "1": [
+                WikipediaFetchedReference(
+                    target_url="https://example.com/research/nvidia-founding",
+                    anchor_text="Nvidia founding timeline",
+                    context_text="Nvidia was founded in 1993.",
+                    reference_text=(
+                        "Example Research. Nvidia founding timeline. Retrieved 2026."
+                    ),
+                    citation_label="[1]",
+                    citation_marker="cite_note-fixture-history-1",
+                    extraction_method="mediawiki_inline_citation_v1",
+                )
+            ],
+            "2": [],
+        }
         titles = {section.index: section.title for section in outline.sections}
         unknown = [index for index in section_indices if index not in content]
         if unknown:
@@ -324,6 +509,7 @@ class FixtureWikipediaProvider(WikipediaProvider):
                 index=index,
                 title=titles[index],
                 paragraphs=content[index],
+                references=references[index],
             )
             for index in section_indices
         ]

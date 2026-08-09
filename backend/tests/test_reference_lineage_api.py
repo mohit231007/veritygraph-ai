@@ -71,7 +71,7 @@ def test_workspace_reference_lineage_resolves_uploaded_explicit_url() -> None:
     response = client.get(f"/api/v1/workspaces/{workspace_id}/reference-lineage")
     assert response.status_code == 200
     lineage = response.json()
-    assert lineage["lineage_version"] == "explicit-reference-lineage-v2-format-links"
+    assert lineage["lineage_version"] == "explicit-reference-lineage-v3-wikipedia-citations"
     assert lineage["summary"] == {
         "source_count": 2,
         "reference_count": 1,

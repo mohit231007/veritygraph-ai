@@ -51,10 +51,21 @@ class WikipediaImportRequest(BaseModel):
         return cleaned
 
 
+class WikipediaFetchedReference(BaseModel):
+    target_url: str
+    anchor_text: str | None = None
+    context_text: str | None = None
+    reference_text: str | None = None
+    citation_label: str | None = None
+    citation_marker: str | None = None
+    extraction_method: str
+
+
 class WikipediaFetchedSection(BaseModel):
     index: str
     title: str
     paragraphs: list[str]
+    references: list[WikipediaFetchedReference] = Field(default_factory=list)
 
 
 class WikipediaFetchedPage(BaseModel):

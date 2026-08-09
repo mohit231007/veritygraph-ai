@@ -108,7 +108,7 @@ export default function ComparisonPanel({ apiHealthy, workspace, analysis }: Pro
           </div>
 
           <aside className="comparison-guardrail" data-testid="comparison-guardrail">
-            <strong>Source IDs ≠ independent reports. Source silence, modal language, disjoint years, or one-sided explicit time scope ≠ contradiction.</strong>
+            <strong>Source IDs ≠ independent reports. Silence, modality, or different time scope ≠ contradiction. In particular, source silence, modal language, disjoint years, or one-sided explicit time scope are not contradiction evidence.</strong>
             <p>{comparison.interpretation_note}</p>
           </aside>
 

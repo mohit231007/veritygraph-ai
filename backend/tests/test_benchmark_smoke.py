@@ -2,7 +2,6 @@ from pathlib import Path
 
 from evaluation.benchmark import run_benchmark
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 

@@ -53,11 +53,29 @@ class SourceSpan(BaseModel):
         return self
 
 
+class SourceReference(BaseModel):
+    """One explicit URL reference retained with exact source provenance.
+
+    References are observations, not causal claims. ``span_id`` is populated only
+    when the reference can be tied to retained evidence text deterministically.
+    """
+
+    reference_id: str
+    source_id: str
+    span_id: str | None = None
+    target_url: str
+    normalized_target_url: str
+    anchor_text: str | None = None
+    context_text: str | None = None
+    extraction_method: str
+
+
 class SourceBundle(BaseModel):
     """Canonical ingestion result returned by the API and persisted by repositories."""
 
     document: SourceDocument
     spans: list[SourceSpan]
+    references: list[SourceReference] = Field(default_factory=list)
 
     @property
     def extracted_text(self) -> str:

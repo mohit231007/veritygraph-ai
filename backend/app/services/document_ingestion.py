@@ -9,6 +9,7 @@ from fastapi import UploadFile
 from app.domain.source import SourceBundle, SourceDocument, SourceType
 from app.ingestion.documents import PARSERS
 from app.repositories.source_repository import SourceRepository
+from app.services.source_references import extract_visible_url_references
 
 
 class UploadValidationError(ValueError):
@@ -74,6 +75,7 @@ async def ingest_document_upload(
 
     source_id = f"src_{uuid4().hex}"
     spans = PARSERS[extension](source_id, content)
+    references = extract_visible_url_references(source_id, spans)
 
     document = SourceDocument(
         source_id=source_id,
@@ -90,6 +92,9 @@ async def ingest_document_upload(
                 (span.page_number or 0 for span in spans),
                 default=0,
             ),
+            "reference_count": len(references),
         },
     )
-    return repository.save(SourceBundle(document=document, spans=spans))
+    return repository.save(
+        SourceBundle(document=document, spans=spans, references=references)
+    )

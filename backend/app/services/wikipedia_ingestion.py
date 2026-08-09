@@ -12,6 +12,7 @@ from app.ingestion.wikipedia import (
     WikipediaProvider,
 )
 from app.repositories.source_repository import SourceRepository
+from app.services.source_references import extract_visible_url_references
 
 
 def _new_span_id() -> str:
@@ -72,6 +73,7 @@ async def ingest_wikipedia_sections(
     if not spans:
         raise ValueError("Wikipedia import produced no readable evidence spans.")
 
+    references = extract_visible_url_references(source_id, spans)
     normalized = "\n\n".join(normalized_parts)
     document = SourceDocument(
         source_id=source_id,
@@ -87,6 +89,9 @@ async def ingest_wikipedia_sections(
             "revision_id": fetched.revision_id,
             "selected_section_count": len(fetched.sections),
             "span_count": len(spans),
+            "reference_count": len(references),
         },
     )
-    return repository.save(SourceBundle(document=document, spans=spans))
+    return repository.save(
+        SourceBundle(document=document, spans=spans, references=references)
+    )

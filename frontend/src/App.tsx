@@ -5,6 +5,7 @@ import ComparisonPanel from "./components/ComparisonPanel";
 import DocumentWorkspace from "./components/DocumentWorkspace";
 import GraphPanel from "./components/GraphPanel";
 import PublicUrlWorkspace from "./components/PublicUrlWorkspace";
+import ReferenceLineagePanel from "./components/ReferenceLineagePanel";
 import SourcePreview from "./components/SourcePreview";
 import WikipediaWorkspace from "./components/WikipediaWorkspace";
 import WorkspaceManager from "./components/WorkspaceManager";
@@ -80,6 +81,11 @@ export default function App() {
         apiHealthy={apiState === "healthy"}
         currentSource={bundle?.document ?? null}
         onWorkspaceChange={setActiveWorkspace}
+      />
+
+      <ReferenceLineagePanel
+        apiHealthy={apiState === "healthy"}
+        workspace={activeWorkspace}
       />
 
       <AnalysisPanel

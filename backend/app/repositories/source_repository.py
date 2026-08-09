@@ -8,7 +8,13 @@ from threading import RLock
 from typing import Protocol
 
 from app.core.config import get_settings
-from app.domain.source import SourceBundle, SourceDocument, SourceSpan, SourceType
+from app.domain.source import (
+    SourceBundle,
+    SourceDocument,
+    SourceReference,
+    SourceSpan,
+    SourceType,
+)
 
 
 class SourceRepository(Protocol):
@@ -104,6 +110,24 @@ class SqliteSourceRepository:
 
                 CREATE INDEX IF NOT EXISTS idx_source_spans_source_order
                     ON source_spans(source_id, char_start, span_id);
+
+                CREATE TABLE IF NOT EXISTS source_references (
+                    reference_id TEXT PRIMARY KEY,
+                    source_id TEXT NOT NULL,
+                    span_id TEXT,
+                    target_url TEXT NOT NULL,
+                    normalized_target_url TEXT NOT NULL,
+                    anchor_text TEXT,
+                    context_text TEXT,
+                    extraction_method TEXT NOT NULL,
+                    FOREIGN KEY(source_id) REFERENCES sources(source_id) ON DELETE CASCADE,
+                    FOREIGN KEY(span_id) REFERENCES source_spans(span_id) ON DELETE SET NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_source_references_source
+                    ON source_references(source_id, reference_id);
+                CREATE INDEX IF NOT EXISTS idx_source_references_target
+                    ON source_references(normalized_target_url);
                 """
             )
 
@@ -143,6 +167,10 @@ class SqliteSourceRepository:
                 ),
             )
             connection.execute(
+                "DELETE FROM source_references WHERE source_id = ?",
+                (document.source_id,),
+            )
+            connection.execute(
                 "DELETE FROM source_spans WHERE source_id = ?",
                 (document.source_id,),
             )
@@ -167,6 +195,28 @@ class SqliteSourceRepository:
                     for span in bundle.spans
                 ],
             )
+            connection.executemany(
+                """
+                INSERT INTO source_references (
+                    reference_id, source_id, span_id, target_url,
+                    normalized_target_url, anchor_text, context_text,
+                    extraction_method
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        reference.reference_id,
+                        reference.source_id,
+                        reference.span_id,
+                        reference.target_url,
+                        reference.normalized_target_url,
+                        reference.anchor_text,
+                        reference.context_text,
+                        reference.extraction_method,
+                    )
+                    for reference in bundle.references
+                ],
+            )
         return bundle
 
     def get(self, source_id: str) -> SourceBundle | None:
@@ -185,10 +235,19 @@ class SqliteSourceRepository:
                 """,
                 (source_id,),
             ).fetchall()
+            reference_rows = connection.execute(
+                """
+                SELECT * FROM source_references
+                WHERE source_id = ?
+                ORDER BY COALESCE(span_id, ''), normalized_target_url, reference_id
+                """,
+                (source_id,),
+            ).fetchall()
 
         return SourceBundle(
             document=self._document_from_row(source_row),
             spans=[self._span_from_row(row) for row in span_rows],
+            references=[self._reference_from_row(row) for row in reference_rows],
         )
 
     def list_documents(self, limit: int = 100) -> list[SourceDocument]:
@@ -231,6 +290,19 @@ class SqliteSourceRepository:
             paragraph_number=row["paragraph_number"],
             char_start=row["char_start"],
             char_end=row["char_end"],
+        )
+
+    @staticmethod
+    def _reference_from_row(row: sqlite3.Row) -> SourceReference:
+        return SourceReference(
+            reference_id=row["reference_id"],
+            source_id=row["source_id"],
+            span_id=row["span_id"],
+            target_url=row["target_url"],
+            normalized_target_url=row["normalized_target_url"],
+            anchor_text=row["anchor_text"],
+            context_text=row["context_text"],
+            extraction_method=row["extraction_method"],
         )
 
 

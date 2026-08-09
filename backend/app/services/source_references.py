@@ -64,11 +64,12 @@ def _reference_id(
     span_id: str | None,
     normalized_target_url: str,
     extraction_method: str,
+    citation_marker: str | None = None,
 ) -> str:
-    material = "|".join(
-        [source_id, span_id or "unscoped", normalized_target_url, extraction_method]
-    )
-    return f"ref_{sha256(material.encode('utf-8')).hexdigest()[:24]}"
+    parts = [source_id, span_id or "unscoped", normalized_target_url, extraction_method]
+    if citation_marker:
+        parts.append(citation_marker)
+    return f"ref_{sha256('|'.join(parts).encode('utf-8')).hexdigest()[:24]}"
 
 
 def build_source_reference(
@@ -83,6 +84,8 @@ def build_source_reference(
     anchor_text: str | None = None,
     context_text: str | None = None,
     reference_text: str | None = None,
+    citation_label: str | None = None,
+    citation_marker: str | None = None,
 ) -> SourceReference:
     """Build one deterministic persisted source reference."""
 
@@ -92,6 +95,7 @@ def build_source_reference(
             span_id,
             normalized_target_url,
             extraction_method,
+            citation_marker,
         ),
         source_id=source_id,
         span_id=span_id,
@@ -102,6 +106,8 @@ def build_source_reference(
         anchor_text=anchor_text,
         context_text=context_text,
         reference_text=reference_text,
+        citation_label=citation_label,
+        citation_marker=citation_marker,
         extraction_method=extraction_method,
     )
 
@@ -304,12 +310,13 @@ def extract_pdf_link_annotation_references(
 def merge_references(*groups: list[SourceReference]) -> list[SourceReference]:
     """Deduplicate one source's references, preferring richer format metadata."""
 
-    chosen: dict[tuple[str | None, int | None, str], SourceReference] = {}
+    chosen: dict[tuple[str | None, int | None, str, str], SourceReference] = {}
     for reference in (item for group in groups for item in group):
         key = (
             reference.span_id,
             reference.page_number,
             reference.normalized_target_url,
+            reference.citation_marker or "",
         )
         existing = chosen.get(key)
         if existing is None or _REFERENCE_PRIORITY.get(reference.extraction_method, 0) > (
@@ -322,6 +329,7 @@ def merge_references(*groups: list[SourceReference]) -> list[SourceReference]:
             item.page_number or 0,
             item.paragraph_number or 0,
             item.span_id or "",
+            item.citation_marker or "",
             item.normalized_target_url,
             item.extraction_method,
         ),

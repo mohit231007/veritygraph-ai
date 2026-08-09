@@ -17,29 +17,34 @@ Public URL ───────┘             |
                   |            lineage            identifier lineage
                   |             |                 shared observations
                   |             |                 + source attestation
-                  v             |                    |
-         Immutable AnalysisRun  |                    |
-                  |             |                    |
-                  v             |                    |
-        Local NLP extraction    |                    |
-                  |             |                    |
-Entity + Relation + Evidence + Assertion Qualifiers  |
-                  |                                  |
-                  v                                  |
-     Deterministic entity resolution                 |
-         /                       \                    |
-canonical entities         remapped assertions       |
-         \                       /                    |
-          +------ Evidence -----+                    |
-                  |                                  |
-         +--------+--------+                         |
-         |                 |                         |
-         v                 v                         |
-EvidenceGraph       Source comparison                |
- projection         support + scoped conflict        |
- analytics          + relationship signals           |
-         |                 |                         |
-         +-----------------+-------------------------+
+                  |             +---------+----------+
+                  |                       |
+                  |                       v
+                  |              Explicit citation graph
+                  |              uniquely resolved edges
+                  v                       |
+         Immutable AnalysisRun            |
+                  |                       |
+                  v                       |
+        Local NLP extraction              |
+                  |                       |
+Entity + Relation + Evidence + Assertion Qualifiers
+                  |                       |
+                  v                       |
+     Deterministic entity resolution      |
+         /                       \         |
+canonical entities         remapped assertions
+         \                       /         |
+          +------ Evidence -----+          |
+                  |                        |
+         +--------+--------+               |
+         |                 |               |
+         v                 v               |
+EvidenceGraph       Source comparison      |
+ projection         support + scoped conflict
+ analytics          + relationship signals |
+         |                 |               |
+         +-----------------+---------------+
                            |
                            v
                  Evidence review surfaces
@@ -80,6 +85,20 @@ SourceDocument -> SourceIdentifier
 
 A shared identifier observation is not source identity. `source_identity` is attested only when the source acquisition URL itself uses a supported DOI resolver or arXiv work URL.
 
+A citation-topology edge is valid only when lower-level provenance resolves uniquely:
+
+```text
+SourceReference -> unique workspace URL target
+```
+
+or:
+
+```text
+reference-role SourceIdentifier -> unique source_identity target
+```
+
+Ambiguous and unresolved provenance never enters deterministic citation topology.
+
 A workspace reference projection may resolve the target URL to one or more currently ingested `SourceDocument` records, but URL matching never rewrites the original reference.
 
 A new relation also carries conservative qualifiers:
@@ -94,17 +113,18 @@ New runs detect direct root negation, direct modal/future auxiliaries, and expli
 
 Entity resolution may change which canonical entity ID a mention or relation points to, but it never changes original mention text, evidence sentence, source span, source document, polarity, modality, or time scope.
 
-The graph, comparison, URL-reference, and bibliographic-identifier layers are deterministic projections rather than second mutable truth stores.
+The evidence graph, comparison, URL-reference, bibliographic-identifier, and citation-topology layers are deterministic projections rather than second mutable truth stores.
 
 ## Domain boundaries
 
 - `ingestion`: obtains permitted content and preserves source structure, observable references, format-level links, selected MediaWiki citation bridges, and bibliographic identifiers.
-- `domain`: canonical source, source reference, source identifier, lineage, analysis, entity, qualified relation, evidence, graph, comparison, feedback, and run models.
+- `domain`: canonical source, source reference, source identifier, lineage, citation topology, analysis, entity, qualified relation, evidence, graph, comparison, feedback, and run models.
 - `nlp`: NER, relation extraction, conservative assertion qualifiers, deterministic entity resolution, and future calibrated adapters.
 - `graph`: deterministic analysis-run projection, established structural algorithms, paths, and future storage adapters.
 - `comparison`: deterministic corroboration, source overlap, source-relationship review signals, and strict evidence-backed scoped contradiction candidates.
 - `reference-lineage`: deterministic explicit URL-reference projection over current workspace sources; no citation-intent inference.
 - `identifier-lineage`: deterministic DOI/arXiv/ISBN observation projection plus explicit acquisition-URL source identity attestation; no registry or citation-intent inference.
+- `citation-graph`: deterministic directed source topology admitted only from uniquely resolved explicit provenance; no stance or truth inference.
 - `insights`: source-derived facts and computed graph observations.
 - `rag`: optional local synthesis over explicitly selected evidence.
 - `api`: HTTP contracts only; orchestration belongs in services.
@@ -250,15 +270,40 @@ The current source is excluded from both candidate sets. Multiple candidates rem
 
 A shared identifier does not prove source identity. A source-identity attestation does not prove citation, endorsement, authorship, factual support, dependence, copying, authority, or truth. No DOI, arXiv, ISBN, Crossref, DataCite, OpenAlex, or other registry request occurs during this projection.
 
+## Explicit citation-graph boundary
+
+The workspace citation graph contains every current source as a node, but edges are admitted only from uniquely resolved explicit provenance.
+
+A URL edge requires:
+
+```text
+SourceReference.resolution == workspace_unique
+```
+
+A bibliographic edge requires:
+
+```text
+SourceIdentifier.role == reference
+AND identity_target_resolution == workspace_unique
+```
+
+Shared `mention` observations are excluded. Ambiguous and unresolved references are also excluded from topology and remain visible through summary counts and their lower-level lineage views.
+
+One `(source_id, target_source_id)` pair produces at most one directed edge. If URL and bibliographic mechanisms both support the pair, their provenance IDs are aggregated on that edge rather than creating parallel duplicate edges.
+
+A uniquely resolved URL self-reference remains an explicit self-edge. Bibliographic identity resolution excludes the current source from target candidates.
+
+Citation topology is descriptive provenance. An edge does not prove endorsement, agreement, factual support, dependence, copying, authority, correctness, or truth. No LLM, embedding model, registry lookup, or fuzzy matcher participates in edge admission.
+
 ## Storage strategy
 
 SQLite stores canonical sources, source spans, explicit source references, bibliographic identifier observations, workspaces, immutable analysis runs, resolved entities, qualified relations, and evidence. Each run stores its model, extractor, and resolver versions.
 
 Existing databases are migrated in place. Historical sources are never silently reinterpreted: old sources have zero reference/identifier rows unless those records were captured when the source was ingested. Existing reference rows receive additive nullable provenance columns without guessed backfill. Historical polarity/modality are `unknown`; historical temporal method is `historical_unknown`; explicit year lists remain empty rather than receiving reconstructed dates.
 
-NetworkX graphs, source comparisons, workspace reference lineage, and bibliographic identifier lineage are regenerated from persisted canonical records rather than stored as separate mutable truth representations.
+NetworkX evidence graphs, source comparisons, workspace reference lineage, bibliographic identifier lineage, and citation graphs are regenerated from persisted canonical records rather than stored as separate mutable truth representations.
 
-Source relationship signals use persisted source metadata (`content_hash`, URL) and retained relation evidence. Reference lineage uses persisted `SourceReference` rows plus canonical/requested/final URL metadata. Identifier lineage uses persisted `SourceIdentifier` observations and their explicit roles.
+Source relationship signals use persisted source metadata (`content_hash`, URL) and retained relation evidence. Reference lineage uses persisted `SourceReference` rows plus canonical/requested/final URL metadata. Identifier lineage uses persisted `SourceIdentifier` observations and their explicit roles. Citation topology composes those two lineage projections and stores no independent edge state.
 
 ## Graph analytics boundary
 
@@ -284,7 +329,7 @@ A acquired B
 
 Historical `unknown` qualifiers remain structurally usable so older immutable runs preserve prior behavior while exposing uncertainty explicitly.
 
-Cytoscape.js is the browser rendering and interaction layer. Layout and selection cannot rewrite backend analytics or evidence lineage.
+Cytoscape.js is the browser rendering and interaction layer for both evidence topology and explicit citation topology. Layout and selection cannot rewrite backend analytics or evidence lineage.
 
 ## Response improvement semantics
 

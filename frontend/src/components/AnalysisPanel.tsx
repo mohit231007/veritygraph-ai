@@ -8,6 +8,7 @@ type AnalysisState = "idle" | "loading" | "ready" | "error";
 type Props = {
   apiHealthy: boolean;
   workspace: WorkspaceDetail | null;
+  onAnalysisChange: (analysis: WorkspaceAnalysis | null) => void;
 };
 
 function sourceLabel(workspace: WorkspaceDetail | null, sourceId: string) {
@@ -15,7 +16,7 @@ function sourceLabel(workspace: WorkspaceDetail | null, sourceId: string) {
   return source ? source.filename ?? source.title : sourceId;
 }
 
-export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
+export default function AnalysisPanel({ apiHealthy, workspace, onAnalysisChange }: Props) {
   const [analysis, setAnalysis] = useState<WorkspaceAnalysis | null>(null);
   const [state, setState] = useState<AnalysisState>("idle");
   const [message, setMessage] = useState<string | null>(null);
@@ -28,6 +29,7 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
   useEffect(() => {
     if (!apiHealthy || !workspace) {
       setAnalysis(null);
+      onAnalysisChange(null);
       setState("idle");
       setMessage(null);
       return;
@@ -46,12 +48,15 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
         );
         if (response.status === 404) {
           setAnalysis(null);
+          onAnalysisChange(null);
           setState("idle");
           setMessage("No analysis run yet. Run the local baseline when this workspace has evidence.");
           return;
         }
         if (!response.ok) throw new Error("Could not load the latest analysis.");
-        setAnalysis((await response.json()) as WorkspaceAnalysis);
+        const restored = (await response.json()) as WorkspaceAnalysis;
+        setAnalysis(restored);
+        onAnalysisChange(restored);
         setState("ready");
         setMessage("Latest completed analysis restored from SQLite.");
       } catch (error) {
@@ -63,7 +68,7 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
 
     void loadLatest();
     return () => controller.abort();
-  }, [apiHealthy, workspace]);
+  }, [apiHealthy, onAnalysisChange, workspace]);
 
   async function runAnalysis() {
     if (!workspace || workspace.source_count === 0) return;
@@ -80,7 +85,9 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
         const detail = "detail" in payload && payload.detail ? payload.detail : "Analysis failed.";
         throw new Error(detail);
       }
-      setAnalysis(payload as WorkspaceAnalysis);
+      const completed = payload as WorkspaceAnalysis;
+      setAnalysis(completed);
+      onAnalysisChange(completed);
       setState("ready");
       setMessage("Analysis completed locally and persisted as a new immutable run.");
     } catch (error) {
@@ -123,33 +130,16 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
       {analysis && (
         <div className="analysis-results" data-testid="analysis-results">
           <div className="analysis-metrics">
-            <article>
-              <span>Sources</span>
-              <strong>{analysis.run.source_count}</strong>
-            </article>
-            <article>
-              <span>Evidence spans</span>
-              <strong>{analysis.run.span_count}</strong>
-            </article>
-            <article>
-              <span>Entities</span>
-              <strong>{analysis.run.entity_count}</strong>
-            </article>
-            <article>
-              <span>Relations</span>
-              <strong>{analysis.run.relation_count}</strong>
-            </article>
-            <article>
-              <span>Runtime</span>
-              <strong>{analysis.run.duration_ms ?? 0} ms</strong>
-            </article>
+            <article><span>Sources</span><strong>{analysis.run.source_count}</strong></article>
+            <article><span>Evidence spans</span><strong>{analysis.run.span_count}</strong></article>
+            <article><span>Entities</span><strong>{analysis.run.entity_count}</strong></article>
+            <article><span>Relations</span><strong>{analysis.run.relation_count}</strong></article>
+            <article><span>Runtime</span><strong>{analysis.run.duration_ms ?? 0} ms</strong></article>
           </div>
 
           <div className="analysis-provenance">
             <span>Run {analysis.run.run_id}</span>
-            <span>
-              {analysis.run.model_name} · {analysis.run.model_version}
-            </span>
+            <span>{analysis.run.model_name} · {analysis.run.model_version}</span>
             <span>{analysis.run.extractor_version}</span>
           </div>
 
@@ -162,13 +152,8 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
               <div className="entity-list" data-testid="entity-list">
                 {analysis.entities.slice(0, 12).map((entity) => (
                   <article key={entity.entity_id}>
-                    <div>
-                      <strong>{entity.canonical_name}</strong>
-                      <span>{entity.entity_type}</span>
-                    </div>
-                    <span>
-                      {entity.mention_count} mention{entity.mention_count === 1 ? "" : "s"}
-                    </span>
+                    <div><strong>{entity.canonical_name}</strong><span>{entity.entity_type}</span></div>
+                    <span>{entity.mention_count} mention{entity.mention_count === 1 ? "" : "s"}</span>
                   </article>
                 ))}
                 {analysis.entities.length === 0 && (
@@ -186,13 +171,9 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
                 {analysis.relations.slice(0, 16).map((relation) => (
                   <article className="relation-card" key={relation.relation_id}>
                     <div className="relation-triplet">
-                      <strong>
-                        {entityNames.get(relation.subject_entity_id) ?? relation.subject_entity_id}
-                      </strong>
+                      <strong>{entityNames.get(relation.subject_entity_id) ?? relation.subject_entity_id}</strong>
                       <span>{relation.predicate}</span>
-                      <strong>
-                        {entityNames.get(relation.object_entity_id) ?? relation.object_entity_id}
-                      </strong>
+                      <strong>{entityNames.get(relation.object_entity_id) ?? relation.object_entity_id}</strong>
                     </div>
                     <div className="relation-meta">
                       <span>Rule score {Math.round(relation.extraction_score * 100)}</span>
@@ -201,9 +182,7 @@ export default function AnalysisPanel({ apiHealthy, workspace }: Props) {
                     {relation.evidence.map((evidence) => (
                       <blockquote key={evidence.evidence_id}>
                         <p>“{evidence.text}”</p>
-                        <footer>
-                          {sourceLabel(workspace, evidence.source_id)} · {evidence.span_id}
-                        </footer>
+                        <footer>{sourceLabel(workspace, evidence.source_id)} · {evidence.span_id}</footer>
                       </blockquote>
                     ))}
                   </article>

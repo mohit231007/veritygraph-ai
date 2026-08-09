@@ -73,7 +73,7 @@ def test_workspace_analysis_persists_entities_relations_and_exact_evidence() -> 
     assert run["model_name"] == "en_core_web_sm"
     assert run["model_version"]
     assert run["pipeline_version"] == "spacy-baseline-v1"
-    assert run["extractor_version"] == "dependency-relations-v1"
+    assert run["extractor_version"] == "dependency-relations-v2-polarity"
     assert run["resolver_version"] == "deterministic-org-aliases-v1"
     assert run["source_count"] == 1
     assert run["span_count"] == 1
@@ -90,6 +90,8 @@ def test_workspace_analysis_persists_entities_relations_and_exact_evidence() -> 
         and names[relation["object_entity_id"]] == "GitHub"
         and relation["predicate"] == "acquire"
     )
+    assert relation["polarity"] == "affirmed"
+    assert relation["polarity_method"] == "dependency_no_root_negation_v1"
     assert relation["extraction_score"] == 0.92
     assert relation["extraction_method"] == "dependency_subject_object"
     assert relation["evidence"][0]["source_id"] == source_id
@@ -139,6 +141,7 @@ def test_real_model_resolver_consolidates_organization_legal_suffixes() -> None:
         and relation["predicate"] == "acquire"
     ]
     assert len(microsoft_relations) == 2
+    assert all(relation["polarity"] == "affirmed" for relation in microsoft_relations)
 
 
 def test_reanalysis_creates_new_immutable_run_and_latest_points_to_newest() -> None:

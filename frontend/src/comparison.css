@@ -90,6 +90,82 @@
   line-height: 1.5;
 }
 
+.contradiction-section {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid rgba(208, 126, 139, 0.28);
+  border-radius: 16px;
+  background: rgba(48, 20, 28, 0.28);
+}
+
+.contradiction-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.8rem;
+}
+
+.contradiction-list > article {
+  padding: 0.9rem;
+  border: 1px solid rgba(208, 126, 139, 0.2);
+  border-radius: 14px;
+  background: rgba(24, 18, 27, 0.74);
+}
+
+.contradiction-list h4,
+.contradiction-list p {
+  margin: 0;
+}
+
+.contradiction-list h4 span {
+  color: #e0a5ae;
+  font-weight: 500;
+}
+
+.contradiction-list > article > p {
+  margin-top: 0.35rem;
+  color: #aa929b;
+  font-size: 0.8rem;
+}
+
+.contradiction-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.8rem;
+}
+
+.contradiction-sides > div {
+  padding: 0.75rem;
+  border: 1px solid rgba(143, 166, 198, 0.12);
+  border-radius: 12px;
+  background: rgba(14, 24, 35, 0.72);
+}
+
+.contradiction-sides > div > strong {
+  color: #e8eef8;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+}
+
+.contradiction-sides blockquote {
+  margin: 0.65rem 0 0;
+  padding: 0.65rem;
+  border-left: 3px solid rgba(208, 126, 139, 0.65);
+  background: rgba(53, 30, 37, 0.38);
+}
+
+.contradiction-sides blockquote p,
+.contradiction-sides blockquote footer {
+  margin: 0;
+}
+
+.contradiction-sides blockquote footer {
+  margin-top: 0.35rem;
+  color: #9b858d;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
 .source-profile-grid {
   gap: 0.8rem;
   margin-top: 1rem;
@@ -299,6 +375,10 @@
 
   .comparison-inspector {
     min-width: 0;
+  }
+
+  .contradiction-sides {
+    grid-template-columns: 1fr;
   }
 }
 

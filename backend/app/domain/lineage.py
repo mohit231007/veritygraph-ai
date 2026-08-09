@@ -73,6 +73,9 @@ class IdentifierLineageObservation(BaseModel):
     resolution: IdentifierMatchResolution
     matching_source_ids: list[str] = Field(default_factory=list)
     matching_labels: list[str] = Field(default_factory=list)
+    identity_target_resolution: IdentifierMatchResolution
+    identity_target_source_ids: list[str] = Field(default_factory=list)
+    identity_target_labels: list[str] = Field(default_factory=list)
     context_text: str | None = None
     extraction_method: str
 
@@ -84,6 +87,9 @@ class IdentifierLineageSummary(BaseModel):
     matched_observation_count: int = Field(ge=0)
     ambiguous_observation_count: int = Field(ge=0)
     reference_linked_observation_count: int = Field(ge=0)
+    source_identity_observation_count: int = Field(ge=0)
+    resolved_identity_target_observation_count: int = Field(ge=0)
+    ambiguous_identity_target_observation_count: int = Field(ge=0)
 
 
 class WorkspaceIdentifierLineage(BaseModel):

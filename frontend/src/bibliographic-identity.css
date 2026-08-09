@@ -1,0 +1,125 @@
+.bibliographic-identity-panel {
+  border: 1px solid rgba(123, 148, 178, 0.18);
+  border-radius: 1rem;
+  padding: 1.2rem;
+  background: rgba(10, 18, 28, 0.76);
+}
+
+.bibliographic-identity-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.bibliographic-identity-heading h2 {
+  margin: 0.2rem 0 0;
+}
+
+.bibliographic-identity-heading > span,
+.bibliographic-identity-status,
+.bibliographic-identity-list footer {
+  color: #8496aa;
+  font-size: 0.78rem;
+}
+
+.bibliographic-identity-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 0.65rem;
+  margin: 0.9rem 0;
+}
+
+.bibliographic-identity-metrics article {
+  border: 1px solid rgba(123, 148, 178, 0.14);
+  border-radius: 0.8rem;
+  padding: 0.75rem;
+  background: rgba(16, 27, 40, 0.72);
+}
+
+.bibliographic-identity-metrics span {
+  display: block;
+  color: #8da0b5;
+  font-size: 0.72rem;
+}
+
+.bibliographic-identity-metrics strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 1.25rem;
+}
+
+.bibliographic-identity-guardrail {
+  margin: 0.8rem 0 1rem;
+  padding: 0.8rem;
+  border-left: 3px solid rgba(103, 190, 168, 0.65);
+  background: rgba(22, 50, 45, 0.22);
+}
+
+.bibliographic-identity-guardrail p {
+  margin: 0.35rem 0 0;
+  color: #9aa9b8;
+}
+
+.bibliographic-identity-list {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.bibliographic-identity-list article {
+  padding: 0.85rem;
+  border: 1px solid rgba(123, 148, 178, 0.15);
+  border-radius: 0.8rem;
+  background: rgba(14, 24, 36, 0.76);
+}
+
+.bibliographic-identity-path,
+.bibliographic-identity-badges {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.bibliographic-identity-badges {
+  margin: 0.55rem 0 0.25rem;
+}
+
+.bibliographic-identity-badges > span {
+  display: inline-block;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(83, 105, 131, 0.2);
+  color: #b2bdc8;
+}
+
+.identifier-resolution.workspace_unique {
+  color: #9dd9c9;
+}
+
+.identifier-resolution.workspace_ambiguous {
+  color: #e4d49c;
+}
+
+.identifier-resolution.no_workspace_match {
+  color: #b2bdc8;
+}
+
+.bibliographic-locator {
+  overflow-wrap: anywhere;
+  color: #93a9c0;
+}
+
+.bibliographic-identity-list blockquote {
+  margin: 0.55rem 0;
+  padding-left: 0.75rem;
+  border-left: 2px solid rgba(123, 148, 178, 0.25);
+  color: #c4ced8;
+}
+
+.bibliographic-identity-empty {
+  color: #8496aa;
+}

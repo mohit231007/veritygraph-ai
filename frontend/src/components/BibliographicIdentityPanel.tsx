@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import "../bibliographic-identity.css";
 import type { WorkspaceDetail } from "../types";
@@ -51,10 +51,26 @@ type WorkspaceIdentifierLineage = {
   interpretation_note: string;
 };
 
+type IdentifierGroup = {
+  key: string;
+  kind: IdentifierKind;
+  normalizedValue: string;
+  versions: number[];
+  sourceLabels: string[];
+  roles: IdentifierRole[];
+  observations: IdentifierObservation[];
+  searchableText: string;
+};
+
+type KindFilter = "all" | IdentifierKind;
+type RoleFilter = "all" | IdentifierRole;
+
 type Props = {
   apiHealthy: boolean;
   workspace: WorkspaceDetail | null;
 };
+
+const INITIAL_IDENTIFIER_LIMIT = 20;
 
 function sharedObservationLabel(observation: IdentifierObservation) {
   if (observation.resolution === "workspace_unique") return "Shared by one other source";
@@ -78,6 +94,10 @@ function roleLabel(role: IdentifierRole) {
   return "Source mention";
 }
 
+function kindLabel(kind: IdentifierKind) {
+  return kind === "arxiv" ? "arXiv" : kind.toUpperCase();
+}
+
 function locatorLabel(observation: IdentifierObservation) {
   const parts: string[] = [];
   if (observation.page_number !== null) parts.push(`Page ${observation.page_number}`);
@@ -90,9 +110,82 @@ function locatorLabel(observation: IdentifierObservation) {
 }
 
 function identityLabel(observation: IdentifierObservation) {
-  const kind = observation.kind === "arxiv" ? "arXiv" : observation.kind.toUpperCase();
   const version = observation.version === null ? "" : ` · observed v${observation.version}`;
-  return `${kind} · ${observation.normalized_value}${version}`;
+  return `${kindLabel(observation.kind)} · ${observation.normalized_value}${version}`;
+}
+
+function buildIdentifierGroups(observations: IdentifierObservation[]): IdentifierGroup[] {
+  const mutable = new Map<
+    string,
+    {
+      kind: IdentifierKind;
+      normalizedValue: string;
+      versions: Set<number>;
+      sourceLabels: Set<string>;
+      roles: Set<IdentifierRole>;
+      observations: IdentifierObservation[];
+    }
+  >();
+
+  for (const observation of observations) {
+    const key = `${observation.kind}:${observation.normalized_value}`;
+    const current = mutable.get(key);
+    if (!current) {
+      mutable.set(key, {
+        kind: observation.kind,
+        normalizedValue: observation.normalized_value,
+        versions: new Set(observation.version === null ? [] : [observation.version]),
+        sourceLabels: new Set([observation.source_label]),
+        roles: new Set([observation.role]),
+        observations: [observation],
+      });
+      continue;
+    }
+    if (observation.version !== null) current.versions.add(observation.version);
+    current.sourceLabels.add(observation.source_label);
+    current.roles.add(observation.role);
+    current.observations.push(observation);
+  }
+
+  return Array.from(mutable.entries())
+    .map(([key, group]) => {
+      const versions = Array.from(group.versions).sort((left, right) => left - right);
+      const sourceLabels = Array.from(group.sourceLabels).sort();
+      const roles = Array.from(group.roles).sort();
+      const occurrenceText = group.observations
+        .flatMap((observation) => [
+          observation.raw_value,
+          observation.context_text,
+          observation.extraction_method,
+          ...observation.matching_labels,
+          ...observation.identity_target_labels,
+        ])
+        .filter((value): value is string => Boolean(value))
+        .join(" ");
+      return {
+        key,
+        kind: group.kind,
+        normalizedValue: group.normalizedValue,
+        versions,
+        sourceLabels,
+        roles,
+        observations: group.observations,
+        searchableText: [
+          kindLabel(group.kind),
+          group.normalizedValue,
+          ...sourceLabels,
+          ...roles.map(roleLabel),
+          occurrenceText,
+        ]
+          .join(" ")
+          .toLowerCase(),
+      };
+    })
+    .sort(
+      (left, right) =>
+        right.observations.length - left.observations.length ||
+        left.normalizedValue.localeCompare(right.normalizedValue),
+    );
 }
 
 export default function BibliographicIdentityPanel({ apiHealthy, workspace }: Props) {
@@ -100,6 +193,11 @@ export default function BibliographicIdentityPanel({ apiHealthy, workspace }: Pr
   const [message, setMessage] = useState(
     "Add sources to inspect DOI, arXiv, and ISBN provenance.",
   );
+  const [query, setQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
+  const [visibleLimit, setVisibleLimit] = useState(INITIAL_IDENTIFIER_LIMIT);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     if (!apiHealthy || !workspace) {
@@ -139,6 +237,48 @@ export default function BibliographicIdentityPanel({ apiHealthy, workspace }: Pr
     return () => controller.abort();
   }, [apiHealthy, workspace]);
 
+  const identifierGroups = useMemo(
+    () => buildIdentifierGroups(lineage?.identifiers ?? []),
+    [lineage?.identifiers],
+  );
+  const singleGroupKey = identifierGroups.length === 1 ? identifierGroups[0].key : null;
+
+  useEffect(() => {
+    setQuery("");
+    setKindFilter("all");
+    setRoleFilter("all");
+    setVisibleLimit(INITIAL_IDENTIFIER_LIMIT);
+    setExpandedGroups(singleGroupKey ? new Set([singleGroupKey]) : new Set());
+  }, [lineage?.workspace_id, singleGroupKey]);
+
+  useEffect(() => {
+    setVisibleLimit(INITIAL_IDENTIFIER_LIMIT);
+  }, [query, kindFilter, roleFilter]);
+
+  const filteredGroups = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return identifierGroups.filter((group) => {
+      const kindMatches = kindFilter === "all" || group.kind === kindFilter;
+      const roleMatches = roleFilter === "all" || group.roles.includes(roleFilter);
+      const queryMatches = !normalizedQuery || group.searchableText.includes(normalizedQuery);
+      return kindMatches && roleMatches && queryMatches;
+    });
+  }, [identifierGroups, kindFilter, query, roleFilter]);
+
+  const crossSourceIdentifierCount = identifierGroups.filter(
+    (group) => group.sourceLabels.length > 1,
+  ).length;
+  const visibleGroups = filteredGroups.slice(0, visibleLimit);
+
+  function toggleGroup(key: string) {
+    setExpandedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   return (
     <section
       className="bibliographic-identity-panel"
@@ -166,7 +306,8 @@ export default function BibliographicIdentityPanel({ apiHealthy, workspace }: Pr
           <div className="bibliographic-identity-metrics">
             <article><span>Sources</span><strong>{lineage.summary.source_count}</strong></article>
             <article><span>Observations</span><strong>{lineage.summary.observation_count}</strong></article>
-            <article><span>Unique identifiers</span><strong>{lineage.summary.unique_identifier_count}</strong></article>
+            <article><span>Unique identifiers</span><strong>{identifierGroups.length}</strong></article>
+            <article data-testid="cross-source-identifier-count"><span>Cross-source identifiers</span><strong>{crossSourceIdentifierCount}</strong></article>
             <article data-testid="bibliographic-match-count"><span>Shared observations</span><strong>{lineage.summary.matched_observation_count}</strong></article>
             <article><span>Identity attestations</span><strong>{lineage.summary.source_identity_observation_count}</strong></article>
             <article data-testid="resolved-identity-target-count"><span>Resolved identity targets</span><strong>{lineage.summary.resolved_identity_target_observation_count}</strong></article>
@@ -180,40 +321,132 @@ export default function BibliographicIdentityPanel({ apiHealthy, workspace }: Pr
             <p>{lineage.interpretation_note}</p>
           </aside>
 
+          {identifierGroups.length > 0 && (
+            <div className="bibliographic-explorer" data-testid="bibliographic-explorer">
+              <div className="bibliographic-explorer-heading">
+                <div>
+                  <strong>Identifier explorer</strong>
+                  <span>{identifierGroups.length} unique identifier{identifierGroups.length === 1 ? "" : "s"} from {lineage.summary.observation_count} observation{lineage.summary.observation_count === 1 ? "" : "s"}</span>
+                </div>
+                <div className="bibliographic-explorer-controls">
+                  <input
+                    type="search"
+                    value={query}
+                    data-testid="bibliographic-search-input"
+                    placeholder="Search identifier, source, evidence, or method"
+                    onChange={(event) => setQuery(event.target.value)}
+                  />
+                  <select
+                    aria-label="Bibliographic identifier kind filter"
+                    value={kindFilter}
+                    onChange={(event) => setKindFilter(event.target.value as KindFilter)}
+                  >
+                    <option value="all">All kinds</option>
+                    <option value="doi">DOI</option>
+                    <option value="arxiv">arXiv</option>
+                    <option value="isbn">ISBN</option>
+                  </select>
+                  <select
+                    aria-label="Bibliographic observation role filter"
+                    value={roleFilter}
+                    onChange={(event) => setRoleFilter(event.target.value as RoleFilter)}
+                  >
+                    <option value="all">All roles</option>
+                    <option value="mention">Source mentions</option>
+                    <option value="reference">Reference-linked</option>
+                    <option value="source_identity">Source identities</option>
+                  </select>
+                </div>
+              </div>
+              <p className="bibliographic-explorer-result-count">
+                Showing {Math.min(visibleLimit, filteredGroups.length)} of {filteredGroups.length} matching unique identifier{filteredGroups.length === 1 ? "" : "s"}.
+              </p>
+            </div>
+          )}
+
           <div className="bibliographic-identity-list">
-            {lineage.identifiers.map((observation) => {
-              const locator = locatorLabel(observation);
-              const target = identityTargetLabel(observation);
+            {visibleGroups.map((group) => {
+              const expanded = expandedGroups.has(group.key);
+              const versionLabel = group.versions.length > 0 ? ` · observed v${group.versions.join(", v")}` : "";
               return (
-                <article
-                  key={observation.identifier_id}
-                  data-testid="bibliographic-identifier-card"
+                <section
+                  className="bibliographic-identifier-group"
+                  key={group.key}
+                  data-testid="bibliographic-identifier-group"
                 >
-                  <div className="bibliographic-identity-path">
-                    <strong>{observation.source_label}</strong>
-                    <span>→</span>
-                    <strong>{identityLabel(observation)}</strong>
-                  </div>
-                  <div className="bibliographic-identity-badges">
-                    <span className={`identifier-resolution ${observation.resolution}`}>
-                      {sharedObservationLabel(observation)}
+                  <button
+                    type="button"
+                    className="bibliographic-group-toggle"
+                    aria-expanded={expanded}
+                    onClick={() => toggleGroup(group.key)}
+                  >
+                    <span className="bibliographic-group-heading">
+                      <strong>{kindLabel(group.kind)} · {group.normalizedValue}{versionLabel}</strong>
+                      <small>
+                        {group.observations.length} observation{group.observations.length === 1 ? "" : "s"} · {group.sourceLabels.length} source{group.sourceLabels.length === 1 ? "" : "s"} · {group.roles.map(roleLabel).join(" · ")}
+                      </small>
                     </span>
-                    <span>{roleLabel(observation.role)}</span>
-                  </div>
-                  {observation.matching_labels.length > 0 && (
-                    <p>Other source observation{observation.matching_labels.length === 1 ? "" : "s"} · {observation.matching_labels.join(" · ")}</p>
+                    {group.sourceLabels.length > 1 && <span className="bibliographic-shared-badge">Cross-source</span>}
+                    <span className="bibliographic-expand-icon" aria-hidden="true">{expanded ? "−" : "+"}</span>
+                  </button>
+                  <p className="bibliographic-group-sources">Observed in · {group.sourceLabels.join(" · ")}</p>
+
+                  {expanded && (
+                    <div className="bibliographic-occurrence-list">
+                      {group.observations.map((observation, index) => {
+                        const locator = locatorLabel(observation);
+                        const target = identityTargetLabel(observation);
+                        return (
+                          <article
+                            key={observation.identifier_id}
+                            data-testid="bibliographic-identifier-card"
+                          >
+                            <div className="bibliographic-occurrence-heading">
+                              <strong>Observation {index + 1}</strong>
+                              <span>{observation.source_label}</span>
+                            </div>
+                            <div className="bibliographic-identity-path">
+                              <strong>{observation.source_label}</strong>
+                              <span>→</span>
+                              <strong>{identityLabel(observation)}</strong>
+                            </div>
+                            <div className="bibliographic-identity-badges">
+                              <span className={`identifier-resolution ${observation.resolution}`}>
+                                {sharedObservationLabel(observation)}
+                              </span>
+                              <span>{roleLabel(observation.role)}</span>
+                            </div>
+                            {observation.matching_labels.length > 0 && (
+                              <p>Other source observation{observation.matching_labels.length === 1 ? "" : "s"} · {observation.matching_labels.join(" · ")}</p>
+                            )}
+                            {target && <p data-testid="identity-target">{target}</p>}
+                            {locator && <p className="bibliographic-locator">{locator}</p>}
+                            {observation.context_text && <blockquote>“{observation.context_text}”</blockquote>}
+                            <footer>{observation.extraction_method}</footer>
+                          </article>
+                        );
+                      })}
+                    </div>
                   )}
-                  {target && <p data-testid="identity-target">{target}</p>}
-                  {locator && <p className="bibliographic-locator">{locator}</p>}
-                  {observation.context_text && <blockquote>“{observation.context_text}”</blockquote>}
-                  <footer>{observation.extraction_method}</footer>
-                </article>
+                </section>
               );
             })}
-            {lineage.identifiers.length === 0 && (
+            {identifierGroups.length === 0 && (
               <p className="bibliographic-identity-empty">
                 No explicit DOI, arXiv, or valid ISBN observations were retained from the current workspace sources.
               </p>
+            )}
+            {identifierGroups.length > 0 && filteredGroups.length === 0 && (
+              <p className="bibliographic-identity-empty">No unique identifier matches the current search and filters.</p>
+            )}
+            {filteredGroups.length > visibleGroups.length && (
+              <button
+                type="button"
+                className="bibliographic-show-more"
+                onClick={() => setVisibleLimit((current) => current + INITIAL_IDENTIFIER_LIMIT)}
+              >
+                Show {Math.min(INITIAL_IDENTIFIER_LIMIT, filteredGroups.length - visibleGroups.length)} more identifiers
+              </button>
             )}
           </div>
         </>

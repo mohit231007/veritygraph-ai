@@ -122,6 +122,8 @@ class SqliteSourceRepository:
                     anchor_text TEXT,
                     context_text TEXT,
                     reference_text TEXT,
+                    citation_label TEXT,
+                    citation_marker TEXT,
                     extraction_method TEXT NOT NULL,
                     FOREIGN KEY(source_id) REFERENCES sources(source_id) ON DELETE CASCADE,
                     FOREIGN KEY(span_id) REFERENCES source_spans(span_id) ON DELETE SET NULL
@@ -149,6 +151,10 @@ class SqliteSourceRepository:
             )
         if "reference_text" not in columns:
             connection.execute("ALTER TABLE source_references ADD COLUMN reference_text TEXT")
+        if "citation_label" not in columns:
+            connection.execute("ALTER TABLE source_references ADD COLUMN citation_label TEXT")
+        if "citation_marker" not in columns:
+            connection.execute("ALTER TABLE source_references ADD COLUMN citation_marker TEXT")
 
     def save(self, bundle: SourceBundle) -> SourceBundle:
         document = bundle.document
@@ -219,8 +225,8 @@ class SqliteSourceRepository:
                 INSERT INTO source_references (
                     reference_id, source_id, span_id, page_number, paragraph_number,
                     target_url, normalized_target_url, anchor_text, context_text,
-                    reference_text, extraction_method
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    reference_text, citation_label, citation_marker, extraction_method
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 [
                     (
@@ -234,6 +240,8 @@ class SqliteSourceRepository:
                         reference.anchor_text,
                         reference.context_text,
                         reference.reference_text,
+                        reference.citation_label,
+                        reference.citation_marker,
                         reference.extraction_method,
                     )
                     for reference in bundle.references
@@ -327,6 +335,8 @@ class SqliteSourceRepository:
             anchor_text=row["anchor_text"],
             context_text=row["context_text"],
             reference_text=row["reference_text"],
+            citation_label=row["citation_label"],
+            citation_marker=row["citation_marker"],
             extraction_method=row["extraction_method"],
         )
 

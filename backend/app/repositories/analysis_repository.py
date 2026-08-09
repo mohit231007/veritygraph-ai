@@ -31,7 +31,7 @@ class AnalysisRepository(Protocol):
 
 
 class SqliteAnalysisRepository:
-    """Persistent analysis runs with entity/relation provenance in local SQLite."""
+    """Persistent analysis runs with entity/relation/source provenance in local SQLite."""
 
     def __init__(self, database_path: str | Path) -> None:
         self.database_path = Path(database_path)
@@ -72,6 +72,18 @@ class SqliteAnalysisRepository:
 
                 CREATE INDEX IF NOT EXISTS idx_analysis_runs_workspace_started
                     ON analysis_runs(workspace_id, started_at DESC);
+
+                CREATE TABLE IF NOT EXISTS analysis_run_sources (
+                    run_id TEXT NOT NULL,
+                    source_id TEXT NOT NULL,
+                    position INTEGER NOT NULL,
+                    PRIMARY KEY(run_id, source_id),
+                    FOREIGN KEY(run_id) REFERENCES analysis_runs(run_id) ON DELETE CASCADE,
+                    FOREIGN KEY(source_id) REFERENCES sources(source_id) ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_analysis_run_sources_run_position
+                    ON analysis_run_sources(run_id, position);
 
                 CREATE TABLE IF NOT EXISTS analysis_entities (
                     entity_id TEXT PRIMARY KEY,
@@ -185,6 +197,20 @@ class SqliteAnalysisRepository:
                     run.error,
                 ),
             )
+            connection.execute(
+                "DELETE FROM analysis_run_sources WHERE run_id = ?",
+                (run.run_id,),
+            )
+            connection.executemany(
+                """
+                INSERT INTO analysis_run_sources (run_id, source_id, position)
+                VALUES (?, ?, ?)
+                """,
+                [
+                    (run.run_id, source_id, position)
+                    for position, source_id in enumerate(run.source_ids)
+                ],
+            )
             connection.execute("DELETE FROM analysis_entities WHERE run_id = ?", (run.run_id,))
 
             for entity in analysis.entities:
@@ -290,14 +316,11 @@ class SqliteAnalysisRepository:
                 (run_id,),
             ).fetchall()
 
+            run = self._run_from_row(connection, run_row)
             entities = [self._entity_from_row(connection, row) for row in entity_rows]
             relations = [self._relation_from_row(connection, row) for row in relation_rows]
 
-        return WorkspaceAnalysis(
-            run=self._run_from_row(run_row),
-            entities=entities,
-            relations=relations,
-        )
+        return WorkspaceAnalysis(run=run, entities=entities, relations=relations)
 
     def latest_for_workspace(self, workspace_id: str) -> WorkspaceAnalysis | None:
         with self._connect() as connection:
@@ -322,14 +345,24 @@ class SqliteAnalysisRepository:
                 """,
                 (workspace_id, safe_limit),
             ).fetchall()
-        return [self._run_from_row(row) for row in rows]
+            return [self._run_from_row(connection, row) for row in rows]
 
     def clear(self) -> None:
         with self._lock, self._connect() as connection:
             connection.execute("DELETE FROM analysis_runs")
 
     @staticmethod
-    def _run_from_row(row: sqlite3.Row) -> AnalysisRun:
+    def _run_from_row(
+        connection: sqlite3.Connection,
+        row: sqlite3.Row,
+    ) -> AnalysisRun:
+        source_rows = connection.execute(
+            """
+            SELECT source_id FROM analysis_run_sources
+            WHERE run_id = ? ORDER BY position ASC
+            """,
+            (row["run_id"],),
+        ).fetchall()
         return AnalysisRun(
             run_id=row["run_id"],
             workspace_id=row["workspace_id"],
@@ -343,6 +376,7 @@ class SqliteAnalysisRepository:
             completed_at=row["completed_at"],
             duration_ms=row["duration_ms"],
             source_count=row["source_count"],
+            source_ids=[source_row["source_id"] for source_row in source_rows],
             span_count=row["span_count"],
             entity_count=row["entity_count"],
             relation_count=row["relation_count"],

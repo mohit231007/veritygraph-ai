@@ -34,6 +34,8 @@ class ComparisonClaim(BaseModel):
     support_level: ClaimSupportLevel
     source_count: int = Field(ge=1)
     source_ids: list[str]
+    distinct_content_fingerprint_count: int = Field(ge=1)
+    distinct_evidence_text_count: int = Field(ge=1)
     evidence_count: int = Field(ge=1)
     evidence: list[RelationEvidence]
 
@@ -75,6 +77,19 @@ class SourcePairOverlap(BaseModel):
     shared_relation_ids: list[str]
 
 
+class SourceRelationshipSignal(BaseModel):
+    left_source_id: str
+    right_source_id: str
+    left_origin_host: str | None = None
+    right_origin_host: str | None = None
+    same_origin_host: bool = False
+    exact_content_fingerprint_match: bool = False
+    exact_evidence_text_overlap_count: int = Field(ge=0)
+    exact_evidence_relation_ids: list[str]
+    possible_derivation_signal: bool = False
+    review_reasons: list[str]
+
+
 class SourceComparisonSummary(BaseModel):
     source_count: int = Field(ge=0)
     claim_count: int = Field(ge=0)
@@ -82,6 +97,10 @@ class SourceComparisonSummary(BaseModel):
     single_source_claim_count: int = Field(ge=0)
     contradiction_candidate_count: int = Field(ge=0)
     pair_count: int = Field(ge=0)
+    exact_content_match_pair_count: int = Field(ge=0)
+    exact_evidence_overlap_pair_count: int = Field(ge=0)
+    same_origin_pair_count: int = Field(ge=0)
+    possible_derivation_pair_count: int = Field(ge=0)
 
 
 class SourceComparison(BaseModel):
@@ -93,4 +112,5 @@ class SourceComparison(BaseModel):
     claims: list[ComparisonClaim]
     contradictions: list[ContradictionCandidate]
     overlaps: list[SourcePairOverlap]
+    source_relationships: list[SourceRelationshipSignal]
     interpretation_note: str

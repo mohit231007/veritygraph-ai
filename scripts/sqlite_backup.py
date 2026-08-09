@@ -5,12 +5,21 @@ import sqlite3
 from pathlib import Path
 
 
+def _remove_destination_files(destination: Path) -> None:
+    for candidate in (
+        destination,
+        Path(f"{destination}-wal"),
+        Path(f"{destination}-shm"),
+    ):
+        if candidate.exists():
+            candidate.unlink()
+
+
 def _backup(source: Path, destination: Path) -> None:
     if not source.is_file():
         raise SystemExit(f"Source database does not exist: {source}")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists():
-        destination.unlink()
+    _remove_destination_files(destination)
     with sqlite3.connect(source) as source_connection:
         with sqlite3.connect(destination) as destination_connection:
             source_connection.backup(destination_connection)
@@ -21,8 +30,7 @@ def _restore(source: Path, destination: Path) -> None:
     if not source.is_file():
         raise SystemExit(f"Backup database does not exist: {source}")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists():
-        destination.unlink()
+    _remove_destination_files(destination)
     with sqlite3.connect(source) as source_connection:
         with sqlite3.connect(destination) as destination_connection:
             source_connection.backup(destination_connection)

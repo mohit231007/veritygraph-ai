@@ -19,6 +19,7 @@ from app.ingestion.wikipedia import (
     WikipediaProvider,
 )
 from app.repositories.source_repository import SourceRepository
+from app.services.source_identifiers import extract_source_identifiers
 from app.services.source_references import (
     build_source_reference,
     extract_visible_url_references,
@@ -131,6 +132,11 @@ async def ingest_wikipedia_sections(
 
     visible_references = extract_visible_url_references(source_id, spans)
     references = merge_references(visible_references, wikipedia_references)
+    identifiers = extract_source_identifiers(
+        source_id=source_id,
+        spans=spans,
+        references=references,
+    )
     normalized = "\n\n".join(normalized_parts)
     document = SourceDocument(
         source_id=source_id,
@@ -147,8 +153,14 @@ async def ingest_wikipedia_sections(
             "selected_section_count": len(fetched.sections),
             "span_count": len(spans),
             "reference_count": len(references),
+            "identifier_count": len(identifiers),
         },
     )
     return repository.save(
-        SourceBundle(document=document, spans=spans, references=references)
+        SourceBundle(
+            document=document,
+            spans=spans,
+            references=references,
+            identifiers=identifiers,
+        )
     )

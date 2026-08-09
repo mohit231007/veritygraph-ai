@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     frontend_origin: str = "http://localhost:5173"
+    max_upload_bytes: int = 10 * 1024 * 1024
 
 
 @lru_cache

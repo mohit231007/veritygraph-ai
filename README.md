@@ -4,7 +4,7 @@
 
 VerityGraph AI is a local-first, zero-mandatory-API-cost platform that transforms PDFs, Word documents, text files, Wikipedia pages, and permitted public web content into traceable knowledge graphs, relationship intelligence, graph analytics, and source-grounded Q&A.
 
-> Status: **Phase 0 — foundation**. The repository currently establishes the production shell, API/UI health contract, Docker workflow, CI, and browser E2E quality gate. The NLP and ingestion layers are the next milestones.
+> Status: **Phase 1 — document provenance vertical slice**. The product foundation is green, and PDF/DOCX/TXT ingestion now normalizes uploaded content into canonical `SourceDocument` and `SourceSpan` records before any NLP runs.
 
 ## Why this project exists
 
@@ -16,6 +16,27 @@ Relation -> Evidence -> SourceSpan -> SourceDocument
 
 Generated answers will preserve the evidence IDs and analysis-run version that produced them. Users will be able to rate an answer, explain what needs improvement, regenerate against the same frozen evidence, compare versions, and keep/export the preferred response.
 
+## What works now
+
+### Document intelligence
+
+Upload:
+
+- PDF
+- DOCX
+- TXT
+
+The ingestion layer performs extension/MIME validation, filename sanitization, bounded reads, SHA-256 hashing, format-specific parsing and provenance construction.
+
+Current provenance behavior:
+
+- **PDF:** one normalized evidence span per readable page.
+- **DOCX:** paragraph spans plus table-row spans. Page numbers are not guessed because DOCX pagination depends on rendering.
+- **TXT:** blank-line-delimited paragraph spans with synthetic page 1.
+- **Scanned PDFs:** fail clearly for now instead of silently producing empty evidence; OCR is a future adapter.
+
+The React interface can upload a source through the real FastAPI service and render filename, format, hash, page/paragraph location, normalized character offsets and extracted evidence text.
+
 ## Product pillars
 
 - **Two ingestion paths, one canonical model** — upload documents or discover public content; both normalize into the same source representation.
@@ -26,7 +47,7 @@ Generated answers will preserve the evidence IDs and analysis-run version that p
 - **Local-first and free by default** — no paid API is required for the core product.
 - **Quality as a feature** — unit, integration, provenance, API, regression, build, container, and Playwright E2E checks converge into one QA command.
 
-## Planned free/open stack
+## Free/open stack
 
 | Layer | Default |
 |---|---|
@@ -48,21 +69,42 @@ Generated answers will preserve the evidence IDs and analysis-run version that p
 | Containers | Docker Compose |
 | CI | GitHub Actions |
 
-## Phase 0 architecture
+## Current architecture
 
 ```text
 Browser
   |
+  | upload PDF / DOCX / TXT
   v
 React / Vite
-  |  GET /api/v1/health
+  |
+  | multipart/form-data
   v
 FastAPI
   |
-  +--> Phase 1+: ingestion -> source spans -> NLP -> evidence graph
+  +--> validation + upload limit
+  |
+  +--> PDF / DOCX / TXT parser
+  |
+  v
+SourceDocument + SourceSpan[]
+  |
+  +--> in-memory repository (v0.2)
+  |
+  +--> Phase 2+: NLP -> relations -> evidence graph -> insights
 ```
 
-The first contract is intentionally small: the real browser must be able to reach the real API. Every feature added after this point inherits a green end-to-end baseline.
+The important architectural rule is **provenance before NLP**. Downstream components will receive source spans rather than anonymous raw strings.
+
+## API contracts available now
+
+```text
+GET  /api/v1/health
+POST /api/v1/documents/upload
+GET  /api/v1/documents/{source_id}
+```
+
+Interactive API documentation is available at `/docs` when the backend is running.
 
 ## Run locally
 
@@ -116,33 +158,36 @@ If `make` is available:
 make qa
 ```
 
+The browser E2E suite now verifies both the API health contract and a real TXT upload from browser -> Nginx -> FastAPI -> parser -> provenance -> browser preview.
+
 ## Repository map
 
 ```text
-backend/              FastAPI application and tests
+backend/              FastAPI application, domain model, ingestion and tests
 frontend/             React/TypeScript interface
 e2e/                  Playwright browser journeys
-docs/                  architecture, ADRs, and QA contract
+docs/                  architecture, provenance model, ADRs and QA contract
 scripts/               cross-platform developer automation
 .github/workflows/     CI quality gates
 ```
 
 ## Roadmap
 
-1. Canonical `SourceDocument` / `SourceSpan` / provenance models.
-2. PDF, DOCX, and TXT ingestion with page/paragraph lineage.
+1. ✅ Canonical `SourceDocument` / `SourceSpan` / provenance models.
+2. ✅ PDF, DOCX, and TXT ingestion with page/paragraph lineage.
 3. Wikipedia search, article preview, and section selection.
 4. Secure public-URL ingestion with SSRF protection.
-5. spaCy NER and dependency-based relation extraction baseline.
-6. Entity resolution and alias handling.
-7. Evidence graph + NetworkX analytics.
-8. Insight Studio feedback/versioning/export workflow.
-9. Multi-source comparison and conflict candidates.
-10. Optional local GraphRAG and answer-improvement engine.
-11. Golden NLP evaluation sets and measured precision/recall/F1.
-12. Neo4j Community adapter and larger-corpus workflows.
+5. SQLite source/workspace persistence.
+6. spaCy NER and dependency-based relation extraction baseline.
+7. Entity resolution and alias handling.
+8. Evidence graph + NetworkX analytics.
+9. Insight Studio feedback/versioning/export workflow.
+10. Multi-source comparison and conflict candidates.
+11. Optional local GraphRAG and answer-improvement engine.
+12. Golden NLP evaluation sets and measured precision/recall/F1.
+13. Neo4j Community adapter and larger-corpus workflows.
 
-See `docs/architecture.md`, `docs/qa.md`, and the ADRs for design rationale.
+See `docs/architecture.md`, `docs/data-model.md`, `docs/qa.md`, and the ADRs for design rationale.
 
 ## License
 

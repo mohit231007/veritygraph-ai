@@ -43,6 +43,7 @@ jobs:
     needs: [backend, frontend]
     env:
       VERITYGRAPH_WIKIPEDIA_PROVIDER: fixture
+      VERITYGRAPH_WEB_PROVIDER: fixture
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -28,15 +28,21 @@ Core fields:
 - `source_type`: document, Wikipedia, or public URL.
 - `title`: human-readable source title.
 - `filename`: original safe basename for uploaded documents; null for web sources.
-- `url`: original public URL when applicable; null for local documents.
+- `url`: final public URL when applicable; null for local documents.
 - `source_format`: txt, pdf, docx, wikipedia, html, etc.
 - `mime_type`: content type accepted by ingestion.
-- `content_hash`: SHA-256 of the normalized source material used by the pipeline.
+- `content_hash`: SHA-256 for reproducibility/deduplication.
 - `size_bytes`: source size at ingestion/normalization.
 - `created_at`: ingestion timestamp.
 - `metadata`: source-specific non-secret metadata.
 
-For uploaded binary documents the content hash covers the exact uploaded bytes. For Wikipedia, it covers the normalized selected text because the imported source is a selected, revision-aware view rather than the complete raw article payload.
+Hash semantics depend on the canonical input boundary:
+
+- uploaded document: exact uploaded bytes;
+- Wikipedia: normalized selected section text;
+- public URL: normalized extracted main text.
+
+This distinction is intentional. For web sources, VerityGraph analyses the selected/extracted evidence view rather than arbitrary navigation/script/advertising markup.
 
 ## SourceSpan
 
@@ -80,6 +86,18 @@ The official MediaWiki API supplies article search results, revision-aware outli
 - paragraph numbering restarts within each selected section.
 - `page_number` is null because web pages do not have stable physical pages.
 
+### Public URL
+
+The SSRF-aware fetcher first obtains a bounded, approved HTML/XHTML/TXT response. Trafilatura then extracts main readable content from those already-fetched bytes.
+
+- `SourceDocument.source_type = public_url`.
+- `url` stores the final validated URL after permitted redirects.
+- metadata stores requested URL, final URL, hostname, redirect count, HTTP status, fetched byte count, and span count.
+- `SourceSpan.section = Main content` in the first extraction version.
+- `paragraph_number` records extracted main-content order.
+- `page_number` is null because public pages do not have stable physical pages.
+- the normalized extracted main text is hashed; raw navigation/script/footer noise is not part of the analysis identity.
+
 ## Invariants
 
 1. Every span belongs to exactly one source.
@@ -88,8 +106,9 @@ The official MediaWiki API supplies article search results, revision-aware outli
 4. User-supplied paths are reduced to a safe basename; directory traversal strings are never persisted as filenames.
 5. Unsupported extension/MIME combinations are rejected before document parsing.
 6. Files larger than the configured upload limit are rejected before parser execution.
-7. Public-source provenance retains its origin URL and source-specific version metadata where available.
-8. Downstream NLP must consume `SourceSpan` objects rather than untraceable raw strings.
+7. Public-source provenance retains its final origin URL and source-specific version/transport metadata where available.
+8. Public URL retrieval must pass the security boundary before content extraction.
+9. Downstream NLP must consume `SourceSpan` objects rather than untraceable raw strings.
 
 ## Persistence roadmap
 

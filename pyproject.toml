@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "veritygraph-ai"
-version = "0.3.0"
+version = "0.4.0"
 description = "Evidence-grounded document and web intelligence platform"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -17,6 +17,7 @@ dependencies = [
   "python-docx>=1.1,<2.0",
   "httpx>=0.27,<1.0",
   "beautifulsoup4>=4.12,<5.0",
+  "trafilatura>=2.1,<3.0",
 ]
 
 [project.optional-dependencies]

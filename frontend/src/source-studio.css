@@ -1,0 +1,41 @@
+.mode-switch {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.public-url-panel {
+  border: 1px solid #2b4152;
+  border-radius: 18px;
+  padding: 18px;
+  background: #0d1923;
+}
+
+.public-url-panel > label {
+  display: block;
+  margin-bottom: 8px;
+  color: #c4d1dc;
+  font-weight: 700;
+}
+
+.safety-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.safety-grid span {
+  padding: 8px 10px;
+  border: 1px solid #294353;
+  border-radius: 10px;
+  background: #09151d;
+  color: #849aab;
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+@media (max-width: 860px) {
+  .mode-switch,
+  .safety-grid {
+    grid-template-columns: 1fr;
+  }
+}
